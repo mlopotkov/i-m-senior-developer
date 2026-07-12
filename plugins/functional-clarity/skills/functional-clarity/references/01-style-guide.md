@@ -52,6 +52,20 @@ def calculate_delivery_cost(order: Order, tariff: Tariff) -> Decimal:
     ...
 ```
 
+### Comment discipline — объясняй «почему», не «что»
+
+Комментарий фиксирует то, что код выразить не может: причину, инвариант,
+неочевидный trade-off. Три класса комментариев — смелл (шум, растящий
+когнитивную нагрузку):
+
+- **Doc-ссылки на секции** — `see DESIGN §9.4` вместо самодостаточного объяснения.
+- **Changelog в коде** — `— unchanged`, `no longer reads DATABASE_URL`; история принадлежит VCS.
+- **Пересказ очевидного** — `// increment counter` над `n += 1`.
+
+Полный список с ❌/✅ и allowlist (`TODO`, `SAFETY:`, security-why) —
+`references/05-comment-style.md`. Tracking-id (`FEAT-XXXX`) покрыт отдельно
+плагином `sdlc`.
+
 ## 5. Организация кода
 
 - Публичный API с четким интерфейсом
