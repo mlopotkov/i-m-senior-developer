@@ -86,5 +86,5 @@
 
 - [Метод и принципы функциональной ясности](../../../plugins/functional-clarity/skills/functional-clarity/SKILL.md)
 - [Дисциплина изменения существующего кода](../../../plugins/functional-clarity/skills/functional-clarity/references/02-code-change-discipline.md)
-- [Комментарии и границы допустимых случаев](../../../plugins/functional-clarity/skills/functional-clarity/references/05-comment-style.md)
+- [Комментарии и границы допустимых случаев](../../../plugins/functional-clarity/skills/comment-style/SKILL.md)
 - [Словарь границы и тест подстановки](../../../plugins/functional-clarity/skills/functional-clarity/references/06-boundary-vocabulary.md)
