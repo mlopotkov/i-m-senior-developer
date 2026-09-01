@@ -136,8 +136,8 @@ Categories the reviewer prioritizes, ordered by signal-to-noise ratio. Style is 
   that belongs in the commit message. They state nothing the code cannot
   express and grow cognitive load. Distinct from the tracking-id bullet above (that
   covers `FEAT-XXXX`) — do not merge them. Normative text (smell classes,
-  allowlist, borderline cases): `functional-clarity`
-  `references/05-comment-style.md`. Known false positives — do not flag:
+  allowlist, borderline cases): skill `functional-clarity:comment-style`.
+  Known false positives — do not flag:
   external standards (`RFC 7231`, `PEP 8`), versioned-API doc conventions
   (`.. versionadded::`, `@since`), `TODO`/`FIXME`/`SAFETY:` lines, and
   changelog-looking wording that explains current behavior — if dropping the

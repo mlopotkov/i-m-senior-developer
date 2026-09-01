@@ -9,23 +9,32 @@
 ## Состав
 
 - **Хук `SessionStart`** — `hooks/hooks.json` подключает
-  `hooks/session-start.sh` с пределом ожидания 5 секунд. Скрипт печатает готовый
-  текст выжимки; фильтр по источнику события не задан, поэтому выжимка попадает
-  и в продолженную сессию, и в сессию после `/clear` или сжатия контекста.
+  `hooks/session-start.sh` с пределом ожидания 5 секунд. Скрипт печатает готовую
+  выжимку принципов, затем добавляет правило из `hooks/comment-gate.txt` и
+  подставляет в него путь к плагину. Фильтр по источнику события не задан,
+  поэтому текст попадает и в продолженную сессию, и в сессию после `/clear`
+  или сжатия контекста.
+- **Хук `SubagentStart`** — `hooks/subagent_comment_gate.py` передаёт то же
+  правило каждому подагенту. Если Python или текст правила недоступен, запуск
+  подагента продолжается без сообщения об ошибке.
 - **Скилл `functional-clarity`** — `skills/functional-clarity/SKILL.md`, при нём
-  восемь справочников: `00-principles.md` (перечень принципов),
+  семь справочников: `00-principles.md` (перечень принципов),
   `01-style-guide.md` (стиль программирования), `02-code-change-discipline.md`
   (дисциплина изменения существующего кода с опорами FPF),
   `03-developer-levels.md` (грейды), `04-bash-instructions.md` (скрипты bash),
-  `05-comment-style.md` (дисциплина комментариев), `06-boundary-vocabulary.md`
-  (словарь границ контекста), `frameworks/python.md` (особенности Python).
-- **Тест** — `skills/functional-clarity/test_boundary_vocabulary.py`: сверяет,
-  что нужные строки про словарь границы есть в справочнике, в `SKILL.md` и в
-  пяти файлах плагина `sdlc`, и что сама сверка сообщает о пропаже строки.
-  Запуск из корня репозитория:
+  `06-boundary-vocabulary.md` (словарь границ контекста),
+  `frameworks/python.md` (особенности Python).
+- **Скилл `comment-style`** — `skills/comment-style/SKILL.md`: правило
+  комментариев «объясняй почему, а не что», проверка холодным чтением,
+  допустимые комментарии и пограничные случаи.
+- **Тесты** — `skills/functional-clarity/test_boundary_vocabulary.py` проверяет
+  связность правила словаря границы, а `hooks/test_subagent_comment_gate.py` —
+  выход хука `SubagentStart` и его поведение при недоступном тексте. Запуск из
+  корня репозитория:
 
 ```bash
 python3 -m unittest discover -s plugins/functional-clarity/skills/functional-clarity -p 'test_*.py'
+python3 plugins/functional-clarity/hooks/test_subagent_comment_gate.py
 ```
 
 Полное изложение принципов и стиля живёт в справочниках рядом со скиллом;
