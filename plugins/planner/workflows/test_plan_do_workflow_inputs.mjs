@@ -35,7 +35,7 @@ const INPUT = {
       title: 'Фаза A',
       inputs: {},
       outputs: {},
-      review_scope: {},
+      review_target: { mode: 'commit-range', base: 'HEAD~1', head: 'HEAD', scope: 'all' },
       implementer: ROLE,
     },
   ],
@@ -69,6 +69,7 @@ function workingSummary(kind, reportPath) {
     return [
       'Status: clean',
       `Report: ${reportPath}`,
+      'Coverage: complete',
       'Findings: major 0; minor 0; security 0; design 0',
       'Blocking: 0',
       'Certification boundary: тестовая подмена не подтверждает работу ролей',
@@ -102,7 +103,7 @@ function occupiedAfterCorrection(rounds) {
 
 async function runWorkflow(scriptPath, args, probe, workingScript) {
   const body = loadWorkflowBody(scriptPath)
-  const calls = { sequence: [], inputProbes: [], working: [], reservations: [] }
+  const calls = { sequence: [], inputProbes: [], working: [], reservations: [], prompts: [] }
   const reservations = new Map()
   const stubAgent = async (prompt, options = {}) => {
     const label = options.label || ''
@@ -110,6 +111,7 @@ async function runWorkflow(scriptPath, args, probe, workingScript) {
 
     if (options.agentType) {
       calls.working.push(label)
+      calls.prompts.push({ label, prompt })
       const [, kind] = label.split(':')
       const reportPath = reservations.get(kind)
       if (!reportPath) throw new Error(`нет брони для рабочего вызова ${label}`)
@@ -155,6 +157,38 @@ async function runWorkflow(scriptPath, args, probe, workingScript) {
     }
   } catch (error) {
     return { error: error.message, calls }
+  }
+}
+
+const LEGACY_SCOPE_INPUT = {
+  ...INPUT,
+  phases: [{ ...INPUT.phases[0], review_target: undefined, review_scope: 'app' }],
+}
+
+function reviewWithoutCoverage(label, reportPath) {
+  if (!label.startsWith('phase-a:review:')) return undefined
+  return [
+    'Status: clean',
+    `Report: ${reportPath}`,
+    'Findings: major 0; minor 0; security 0; design 0',
+    'Blocking: 0',
+    'Certification boundary: тестовая подмена не подтверждает работу ролей',
+    'Summary: замечаний нет',
+  ].join('\n')
+}
+
+function reviewWithCoverage(value) {
+  return (label, reportPath) => {
+    if (!label.startsWith('phase-a:review:')) return undefined
+    return [
+      'Status: clean',
+      `Report: ${reportPath}`,
+      `Coverage: ${value}`,
+      'Findings: major 0; minor 0; security 0; design 0',
+      'Blocking: 0',
+      'Certification boundary: тестовая подмена не подтверждает работу ролей',
+      'Summary: замечаний нет',
+    ].join('\n')
   }
 }
 
@@ -207,6 +241,35 @@ const SCENARIOS = [
     expect: { collisionRetry: { repeatLabel: 'phase-a:implementation:2', implementationReservations: 2 } },
   },
   {
+    name: 'область ревью передаётся ревьюеру дословно',
+    probe: inputProbe(),
+    expect: { reviewPromptContains: ['commit-range', 'HEAD~1'] },
+  },
+  {
+    name: 'прежний review_scope нормализуется и доходит до ревью',
+    args: LEGACY_SCOPE_INPUT,
+    probe: inputProbe(),
+    expect: { reviewPromptContains: ['app'] },
+  },
+  {
+    name: 'сводка ревью без полноты не принимается',
+    probe: inputProbe(),
+    working: reviewWithoutCoverage,
+    expect: { summaryDeviation: 'Coverage' },
+  },
+  {
+    name: 'неполное покрытие останавливает фазу без круга правок',
+    probe: inputProbe(),
+    working: reviewWithCoverage('incomplete'),
+    expect: { stopped: true, reason: 'review-coverage-incomplete', noFixRounds: true },
+  },
+  {
+    name: 'пустая область ревью останавливает фазу без круга правок',
+    probe: inputProbe(),
+    working: reviewWithCoverage('empty'),
+    expect: { stopped: true, reason: 'review-coverage-empty', noFixRounds: true },
+  },
+  {
     name: 'три занятых пути после корректирующих вызовов останавливают прогон пределом',
     probe: inputProbe(),
     working: occupiedAfterCorrection(3),
@@ -227,6 +290,27 @@ function mismatch(outcome, expect) {
         return `релей проверки пригодности не получил путь ${value}`
       }
     }
+  }
+
+  if (expect.reviewPromptContains) {
+    const reviewCall = calls.prompts.find((entry) => entry.label.startsWith('phase-a:review:'))
+    if (!reviewCall) return 'ревьюер не вызван'
+    for (const fragment of expect.reviewPromptContains) {
+      if (!reviewCall.prompt.includes(fragment)) {
+        return `промпт ревью не содержит «${fragment}»`
+      }
+    }
+    return null
+  }
+
+  if (expect.summaryDeviation) {
+    const found = result.summary_deviations.some((entry) =>
+      String(entry.detail).includes(expect.summaryDeviation),
+    )
+    if (!found) {
+      return `отклонение «${expect.summaryDeviation}» не записано: ${JSON.stringify(result.summary_deviations)}`
+    }
+    return null
   }
 
   if (expect.reachesWorking) {
@@ -271,6 +355,9 @@ function mismatch(outcome, expect) {
     if (result.state !== 'stopped') return `состояние «${result.state}» вместо stopped`
     if (!String(result.reason).includes(expect.reason)) {
       return `причина «${result.reason}» не называет «${expect.reason}»`
+    }
+    if (expect.noFixRounds && result.fix_rounds.total !== 0) {
+      return `кругов правок ${result.fix_rounds.total} вместо 0`
     }
     if (expect.workingCalls !== undefined && calls.working.length !== expect.workingCalls) {
       return `рабочих вызовов ${calls.working.length} вместо ${expect.workingCalls}: ${calls.working.join(', ')}`
