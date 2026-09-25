@@ -1629,6 +1629,19 @@ def validate_response_field_names(
         )
 
 
+def response_contract(kind: str) -> int:
+    accepted = _RESPONSE_SHARED_FIELDS | _RESPONSE_FIELDS_BY_KIND[kind]
+    fields = {
+        field: {
+            "required": field in _RESPONSE_REQUIRED_FIELDS,
+            "type": "list[text]" if field in _RESPONSE_LIST_FIELDS else "text",
+        }
+        for field in sorted(accepted)
+    }
+    print_payload({"fields": fields, "for": kind})
+    return 0
+
+
 def validate_response_field_types(draft: dict[str, Any], path: Path) -> None:
     for field, value in sorted(draft.items()):
         if field in _RESPONSE_LIST_FIELDS:
@@ -1788,6 +1801,14 @@ def build_parser() -> CliParser:
     check_command.add_argument("path", type=Path)
     check_command.add_argument("--mark-stale", action="store_true")
 
+    response_contract_command = commands.add_parser("response-contract")
+    response_contract_command.add_argument(
+        "--for",
+        dest="product_kind",
+        choices=("idea", "epic", "roadmap", "feature"),
+        required=True,
+    )
+
     response_command = commands.add_parser("check-response")
     response_command.add_argument("path", type=Path)
     response_command.add_argument(
@@ -1846,6 +1867,8 @@ def run(arguments: list[str] | None = None) -> int:
         )
     if options.command == "check":
         return check_document(options.path, options.mark_stale)
+    if options.command == "response-contract":
+        return response_contract(options.product_kind)
     if options.command == "check-response":
         return check_response(options.path, options.product_kind, options.consume)
     if options.command == "reserve-response-draft":
