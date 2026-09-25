@@ -127,6 +127,7 @@ The `fullName` state diverges from `user` after initial mount. Flag as medium fi
 
 ## Test quality review
 
+- **Test walks the skip path, not the mechanism under change** — the behaviour under change runs by itself (an effect, a timer, a subscription, an event handler), but every test calls the setter or clicks the manual control instead, so the path that IS the feature never executes. Green suite, untested mechanism. Ask which test fails if the effect is deleted; if none, the coverage is theatrical. Evidence names the manual control the test drives and the handler with no covering test. Fix direction: a test that fires the real event and asserts the effect only it produces. Observed: an advance-on-audio-complete step whose smoke click-walked every screen, so the event handler never ran.
 - **Snapshot tests as the only test** — `expect(rendered).toMatchSnapshot()` without any behavioral assertion. Snapshot breaks on any change (including intentional); provides no signal about what went wrong. Flag as low-signal test; require at least one behavioral assertion (does the button label say the right thing? Does the handler fire?).
 - **Querying by class or id** — `container.querySelector('.submit-btn')` — brittle; breaks on CSS refactor. Flag as minor; fix direction: use `screen.getByRole('button', { name: /submit/i })` (accessibility-first query).
 - **Missing user-event tests for interaction** — new button / input without a test that fires `userEvent.click()` or `userEvent.type()`. Flag as minor.

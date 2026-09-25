@@ -281,10 +281,18 @@ pytest                        # full suite — N passed, 0 failed
 ### Assumptions made
 - <assumption> — <why it was needed>
 
+### Risks & boundary cases
+<!-- Always present. «none identified» is an answer; an absent section is not. -->
+- <edge case this change does not cover, or covers only partially>
+- <predicted failure point: where this breaks first, under what input or load>
+- <risk the reviewer should verify with evidence>
+
 ### Hand-off
 Next agent: `sdlc:code-reviewer`
 Diff scope: <base-ref>..HEAD or <list of changed files>
 ```
+
+Report a risk even when nobody asked. **Assumptions made** holds what you inferred in order to proceed; **Risks & boundary cases** holds what you predict could fail and what you knowingly left uncovered. When an assumption is also a predicted failure, it goes in both — the assumption named where you made it, its consequence named as the risk — and never the other way round. A check you could not run is not a risk: it belongs to `Blocked checks` above and is not repeated here. Write «none identified» when honest review finds none — the section is always present, so an empty one is a claim and a missing one is a silence. The reviewer turns each line into a check.
 
 ### Orchestrated report hand-off
 
@@ -412,7 +420,8 @@ mobile, Rust):
   mypy config, migrations, async/sync boundary, wire-contract
   (serialization-boundary) tests, strict type-checker
   (pyright/basedpyright) patterns, extending existing behavior,
-  `makemigrations --check` DoD.
+  parsing nested data with a balanced scan, `makemigrations --check`
+  DoD.
 
 - `references/frontend-react.md` — load when stack is React. Covers:
   project structure, component patterns, hooks, TanStack Query,

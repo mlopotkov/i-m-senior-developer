@@ -194,6 +194,7 @@ Review lens from `functional-clarity:functional-clarity` Error Hiding principle:
 
 ## Test quality review
 
+- **Test walks the skip path, not the mechanism under change** — the behaviour under change runs by itself (a signal receiver, a Celery task, a scheduler tick, a `post_save` hook), but every test calls the service function directly or flips the model field by hand, so the trigger that IS the feature never fires. Green suite, untested mechanism. Ask which test fails if the receiver is deleted; if none, the coverage is theatrical. Evidence names the direct call the test makes and the handler with no covering test. Fix direction: a test that exercises the real trigger and asserts the effect only the trigger produces.
 - **Tests testing the mock, not the system:** `assert mock_send_email.called` without checking what arguments were passed → the test passes even if the call is wrong. Flag: require `mock_send_email.assert_called_with(expected_args)`.
 - **`assert mock.called` only:** as above — checks invocation count, not correctness.
 - **No negative-path tests:** new endpoint or function with only a happy-path test. Flag as minor finding: "no test for error case / unauthorized case / empty input case."

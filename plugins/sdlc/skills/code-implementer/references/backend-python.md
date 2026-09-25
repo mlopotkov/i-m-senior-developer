@@ -239,6 +239,43 @@ implementation rather than duplicate or rewrite it:
 Parsimony default (FPF A.11): prefer composing existing primitives + a
 backward-compatible extension over a new parallel implementation.
 
+## Parsing nested data
+
+**Use a balanced scan, not a flat character class.** A pattern like
+`\[([^\]]*)\]` stops at the first closing bracket: it breaks on a nested array
+and on a bracket inside a quoted string. Track depth and respect quoting, or wait
+for the complete buffer and hand it to a real parser. This matters most on
+partial or streamed payloads, where the temptation to "just regex the value out"
+is strongest.
+
+```python
+# breaks on [1, [2], 3] and on ["a]b"]
+re.search(r"\[([^\]]*)\]", text)
+```
+
+```python
+def first_group(text: str) -> str:
+    depth, start, quote = 0, None, None
+    for i, ch in enumerate(text):
+        if quote:
+            quote = None if ch == quote else quote
+        elif ch in "\"'":
+            quote = ch
+        elif ch == "[":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                return text[start + 1 : i]
+    raise ValueError("no complete group in payload")
+```
+
+Before claiming the extractor works, add two cases to its test: a nested
+structure and a bracket inside a string. A single flat example passes either
+implementation and proves nothing.
+
 ## Common implementation pitfalls
 
 - **No `transaction.atomic`** on multi-step writes — one failure
