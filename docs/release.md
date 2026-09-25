@@ -36,6 +36,7 @@
    полный успешный запуск этого файла на выпускаемом содержимом:
 
    ```bash
+   python3 plugins/clarity-language/evals/run.py
    python3 plugins/planner/evals/run.py
    python3 plugins/sdlc/evals/run.py
    ```

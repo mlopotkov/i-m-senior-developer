@@ -16,6 +16,7 @@ function loadWorkflow() {
 
 async function run() {
   const body = loadWorkflow()
+  let evaluationPrompt = ''
   let reportPrompt = ''
 
   const stubAgent = async (prompt, options = {}) => {
@@ -31,6 +32,7 @@ async function run() {
       }
     }
     if (label.startsWith('оценка:')) {
+      evaluationPrompt = prompt
       return {
         file: 'docs/example.md',
         verdicts: [
@@ -85,10 +87,10 @@ async function run() {
     report_path: '.claude/report.md',
   })
 
-  return { result, reportPrompt }
+  return { evaluationPrompt, result, reportPrompt }
 }
 
-function check({ result, reportPrompt }) {
+function check({ evaluationPrompt, result, reportPrompt }) {
   const failures = []
   const marker = 'Данные разбора:\n\n'
   const end = '\n\nОтчёт состоит'
@@ -107,6 +109,13 @@ function check({ result, reportPrompt }) {
     if (green.length !== 2 || new Set(green.map((row) => row.verdict)).size !== 2) {
       failures.push('два контекста одного слова не сохранены раздельно')
     }
+  }
+
+  if (!evaluationPrompt.includes('skills/russian-style/SKILL.md')) {
+    failures.push('оценка не получает канонический skill русского стиля')
+  }
+  if (!evaluationPrompt.includes('references/substitution-cases.md')) {
+    failures.push('оценка не получает справочник наблюдённых случаев')
   }
 
   if (!reportPrompt.includes('ПО ВХОЖДЕНИЯМ')) {
