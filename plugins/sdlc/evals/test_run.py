@@ -20,6 +20,7 @@ class SdlcEvalRunnerTest(EvalRunnerTestCase):
         "mined-guards-code-diff",
         "mined-guards-implementer",
         "mined-guards-prose-diff",
+        "orchestrated-report-write",
         "working-tree-coverage",
     )
     validated_paths = (
@@ -49,7 +50,7 @@ class SdlcEvalRunnerTest(EvalRunnerTestCase):
         "--judge-model",
         "haiku",
     )
-    default_max_cost_usd = "32.00"
+    default_max_cost_usd = "38.00"
     results_root_variable = "SDLC_EVAL_RESULTS_ROOT"
 
 

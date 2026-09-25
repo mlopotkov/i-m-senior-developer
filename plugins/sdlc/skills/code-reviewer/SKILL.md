@@ -34,8 +34,6 @@ Reviews code changes for system-level issues, security vulnerabilities, and FPF 
 
 6. **Operate on git-diff.** Review the change set, not the whole codebase. The scope of a finding is what changed. Cross-reference with `Read` and `Grep` to understand context when needed, but keep findings anchored to lines that exist in the diff. Reviewing the entire project when a 3-file diff was supplied is a scope error. Documentation mode widens this to the whole changed file — never to the project.
 
-Together these six prevent the four failure modes each one names: report noise, evidence-free blockers, security skipped because the diff looked innocent, and overstepping into implementation.
-
 ## Workflow
 
 6-step pipeline, runs on every activation:
@@ -63,7 +61,7 @@ A PR number, a branch name, or a bare `<base>..HEAD` range normalizes to `commit
 
 5. **Walk the diff with loaded checklists.** Apply security checklist first, then FPF check (Error Hiding, fail-fast, contract), then stack-specific checklist. For each section of the diff: ask "what could go wrong here?", "is there a test for this behavior?", "does this change any contract silently?". If the diff implements a recognizable domain with a specialized skill installed, co-activate it read-only for a final pass — it finds a defect class the generic passes miss. The `Domain pass:` line of the Certification boundary records it either way: the skill named and activated, or `none available`. Reading a stack reference is not a domain pass, and a pass that did not run is never credited with findings. Classify each finding: major (blocks the current review), minor (advisory), security (always blocks the current review), design concern. A design concern has two axes: `blocks_current_review: false` and `blocks_plan_continuation: true`. It does not call the current diff defective, but the orchestrator must present it to the human before the next plan phase; never invoke an architect automatically. Consolidate duplicate findings — same pattern in multiple files becomes one item with all locations.
 
-6. **Emit review report** per output format below. Write to the exact supplied `<feature-dir>/review-request-changes/REVIEW-NN.md` only when the orchestrator supplies both that path and the compact return format. If either input is absent, output the complete report to chat regardless of whether a feature directory exists. Output must always use the structured template — no freeform prose in place of the template sections. The structured format enables the implementer to process each finding as an independent work item.
+6. **Emit review report** per output format below, into the destination selected by the fork at the head of that section: the exact supplied `<feature-dir>/review-request-changes/REVIEW-NN.md` when the orchestrator supplies both that path and the compact return format, chat otherwise. Output must always use the structured template — no freeform prose in place of the template sections. The structured format enables the implementer to process each finding as an independent work item.
 
 ## Git-diff approach
 
@@ -96,7 +94,7 @@ Additional tools for context:
 
 **Forbidden commands in review mode:** `git checkout`, `git reset`, `git add`, `git commit`, `git push`, `git stash`, `git apply`, `git merge`, `git rebase`. The reviewer never mutates reviewed source files, the index, or any branch; the sole permitted write is the exact report path supplied together with the compact return format.
 
-Review of source is strictly read-only. Writing the one permitted review report records the diagnosis without making the reviewer a co-author of the reviewed change. Maintain the separation of concerns.
+Review of source is strictly read-only; writing the one permitted review report records the diagnosis without making the reviewer a co-author of the reviewed change.
 
 If a finding requires running code to verify (e.g. confirming a race condition is observable), instruct the implementer: "unverified — implementer to reproduce by running `<command>`." The implementer confirms and reports back; the reviewer then updates the finding if the reproduction fails. The report's `## Certification boundary` section names, up front, the defect classes static review cannot certify — state them as a self-limitation; do not silently imply they were cleared.
 
@@ -125,7 +123,9 @@ Categories the reviewer prioritizes, ordered by signal-to-noise ratio. Style is 
   finding is real. Look hardest where imports are clean. Exempt from Principle 1
   — reproducible criterion, not taste. Never names internal to one context, and
   never presentation-layer copy — button labels, operator-facing texts. Severity: major on public ports, events, signatures and
-  schemas; minor in prose-only leaks.
+  schemas; minor in prose-only leaks. The three leak channels and the limits of
+  the test: `references/06-boundary-vocabulary.md` of
+  `functional-clarity:functional-clarity`.
 - **Leaked secrets** — credentials, API keys, tokens in the diff. This includes test fixtures, comments, and URLs with embedded auth strings.
 - **Missing migrations** — model or schema changes without a corresponding migration file. The migration is part of the change, not "to be added later."
 - **Untested edge cases** — happy path is tested; negative paths, empty inputs, and permission boundaries are not. Flag each missing test case; the implementer adds them.
@@ -175,7 +175,14 @@ With no executable code in the diff, skip the OWASP walk-through; still emit the
 
 ## Output format — review report
 
-Template for the exact `<feature-dir>/review-request-changes/REVIEW-NN.md` supplied together with the compact return format. If either input is absent, output the same structure to chat regardless of whether a feature directory exists.
+The report has two destinations of equal standing, and the call settles which one before any section is written:
+
+- **Orchestrated** — the caller supplies both an exact review-report path and the compact return format: write the complete report to that exact path and return the compact summary below to chat.
+- **Independent** — either input is absent: return the complete report to chat, whether or not a feature directory exists.
+
+A supplied report path is the explicit request that the general rule against creating `*.md` files defers to; that path is normally already reserved as an empty file, so the write fills it rather than creating a file. Refusing to write it, or reporting the review blocked because report files may not be created, is a contract violation. Attempt the write. Report only a refusal the tool returned, quoted verbatim. An anticipated refusal is not a refusal.
+
+Complete report template:
 
 ```markdown
 # Review — <feature-id or branch name> (REVIEW-NN)
@@ -233,12 +240,9 @@ Design concerns (if any): the orchestrator presents them to the human before the
 
 ### Orchestrated report hand-off
 
-This mode applies only when the orchestrator explicitly supplies both the
-exact review-report path and the compact return format. Only then write the
-complete report above to that exact path and return this compact summary to
-chat; do not duplicate the complete report there. If either input is absent,
-keep the complete report in chat and do not write a report file, regardless of
-whether a feature directory exists.
+Orchestrated mode writes the complete report above to the supplied path and
+returns this compact summary to chat in its place; do not duplicate the
+complete report there. The rules in the rest of this section govern this mode.
 
 ```text
 Status: clean | changes-requested
@@ -261,8 +265,7 @@ reviewed-clean result.
 `design` count separately means `blocks_plan_continuation: true`, even when
 `Status` is `clean`. The 1200-character limit applies only to `Summary`. Use
 `Report: chat (no feature directory)` only when the orchestrator explicitly
-states that condition; without both orchestrator inputs, return the complete
-report to chat instead of a compact summary.
+states that condition.
 
 If the orchestrator explicitly states in the same call that a complete correct
 report already exists at the supplied path and requests only a corrected compact
@@ -278,10 +281,6 @@ by a short explanation of what was found there. Do not return the ordinary
 compact summary or choose another path yourself. Do not delete, rename, or
 overwrite a file owned by another role: the orchestrator owns path selection
 and numbering.
-
-These checks apply only to this orchestrated mode. Without both the supplied
-path and compact return format, keep the existing independent behavior of
-returning the complete report in chat.
 
 Finding format (mandatory for every non-minor item):
 
@@ -320,7 +319,7 @@ Headlines below; full explanations in `references/review-conventions.md`.
 
 **Co-activation order:** Load `references/security.md` unconditionally → activate `functional-clarity:functional-clarity` if installed → load stack references based on diff detection → optionally activate `document-skills:frontend-design` for frontend diffs. Do not alter this order. Security first, always.
 
-This ordering ensures that even a partial review (stopped early) has produced the security output. Later sections (stack-specific, FPF) can be incomplete; the security section must be complete before any other section is started.
+Even a partial review then carries its security output: later sections (stack-specific, FPF) may be incomplete, the security section must be complete before any other is started.
 
 ## When references are missing
 
@@ -341,11 +340,7 @@ Universal principles applicable to any stack:
 
 ## Where to write
 
-The reviewer has one writeable path:
-
-- the exact `<feature-dir>/review-request-changes/REVIEW-NN.md` path supplied by the orchestrator together with the compact return format — the review report.
-
-If either input is absent, output the complete review report to chat, regardless of whether a feature directory exists. Do not create `REVIEW-NN.md` in an arbitrary location — only at the supplied path when both inputs are present.
+The reviewer has one writeable path: the exact `<feature-dir>/review-request-changes/REVIEW-NN.md` supplied by the orchestrator together with the compact return format. Writing it is the contract, not an optional extra — see the fork at the head of §Output format. Do not create `REVIEW-NN.md` in an arbitrary location; without both inputs the complete report goes to chat.
 
 The reviewer does **not** write to:
 - The reviewed source files (reviewer reads, not edits).
@@ -358,8 +353,8 @@ One report per review round, not one file per finding: the `## Security` and `##
 
 - `references/security.md` — **always loaded**, regardless of stack or diff size. OWASP Top 10 review checklist with grep patterns per category, secrets detection patterns, auth/authz review (IDOR, JWT pitfalls, missing decorators, session handling), injection vectors table, CSRF/CORS/CSP, SSRF. Non-optional; present in every review activation.
 
-- `references/backend-python.md` — load when diff contains `*.py` files. Django security specifics (`mark_safe`, `raw()`, `extra()`), n+1 query detection and DRF nested serializer patterns, ORM pitfalls (`get_or_create` race, `bulk_create` bypass, `update()` signal skip, validators-on-`.create()`, nullable-unique `''`), transaction boundary rules (incl. counter/balance lost-update), re-runnable command idempotency, ASGI middleware & JWT-claim hazards, Error Hiding patterns in Python, type-safety and test quality review. Review angle only — no implementation patterns, no design decisions.
+- `references/backend-python.md` — load when diff contains `*.py` files. Django security specifics, n+1 and DRF serializer patterns, ORM pitfalls, transaction boundary rules, command idempotency, ASGI middleware and JWT-claim hazards, Error Hiding in Python, type-safety and test quality. Review angle only — no implementation patterns, no design decisions.
 
-- `references/frontend-react.md` — load when diff contains `*.tsx` / `*.jsx` / `*.ts` / `*.vue` / `*.svelte` files. XSS vectors (`dangerouslySetInnerHTML`, `javascript:` scheme, `eval`), CSP violations, accessibility anti-patterns (`<div onClick>`, missing `alt`, unlabeled inputs, focus management), performance pitfalls (inline objects in JSX, overused `useMemo`), hooks anti-patterns (stale closures, missing cleanup, conditional hook calls), state management overengineering (incl. mixed state sources), form & rendering runtime pitfalls (tsc-clean, runtime-failing), type-safety and test quality review (incl. error-envelope mock fidelity). Review angle only — no implementation patterns, no design decisions.
+- `references/frontend-react.md` — load when diff contains `*.tsx` / `*.jsx` / `*.ts` / `*.vue` / `*.svelte` files. XSS vectors, CSP violations, accessibility anti-patterns, performance pitfalls, hooks anti-patterns, state management overengineering, form and rendering runtime pitfalls, type-safety and test quality. Review angle only — no implementation patterns, no design decisions.
 
 - `references/review-conventions.md` — loaded on demand. Full Gotcha explanations, two worked finding examples, the security-framing rationale, Documentation mode in full, and the two system-issue categories whose exemption lists live here. SKILL.md keeps the headlines; this holds the detail.

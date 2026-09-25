@@ -225,7 +225,14 @@ When llms.txt and llms-full.txt already exist:
 
 ## Output
 
-After generating or updating, provide a brief report:
+The report has two destinations of equal standing, and the call settles which one before it is written:
+
+- **Orchestrated** — the caller supplies both an exact report path and a compact return format: write the complete report to that exact path and return only the compact summary it asked for.
+- **Independent** — either input is absent: return the complete report below in chat.
+
+A supplied report path is the explicit request that the general rule against creating `*.md` files defers to; that path is normally already reserved as an empty file, so the write fills it rather than creating a file. Refusing to write it, or reporting the call blocked because report files may not be created, is a contract violation. Attempt the write. Report only a refusal the tool returned, quoted verbatim. An anticipated refusal is not a refusal.
+
+Complete report:
 
 ```
 ## Documentation Update

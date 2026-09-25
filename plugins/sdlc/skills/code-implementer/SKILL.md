@@ -247,8 +247,23 @@ changes → no information loss.
 
 ## Output format — implementation report
 
-When invoked independently, emit the complete report to chat (do not write a
-separate report file):
+The report has two destinations of equal standing, and the call settles which
+one before any section is written:
+
+- **Orchestrated** — the caller supplies both an exact report path and the
+  compact return format: write the complete report below to that exact path and
+  return the compact summary from §Orchestrated report hand-off to chat.
+- **Independent** — either input is absent: emit the complete report below to
+  chat.
+
+A supplied report path is the explicit request that the general rule against
+creating `*.md` files defers to; that path is normally already reserved as an
+empty file, so the write fills it rather than creating a file. Refusing to
+write it, or returning `blocked` because report files may not be created, is a
+contract violation. Attempt the write. Report only a refusal the tool returned,
+quoted verbatim. An anticipated refusal is not a refusal.
+
+Complete report:
 
 ```
 ## Implementation report
@@ -296,10 +311,9 @@ Report a risk even when nobody asked. **Assumptions made** holds what you inferr
 
 ### Orchestrated report hand-off
 
-This mode applies only when the orchestrator explicitly supplies both the
-exact path for the complete implementation report and the compact return
-format. Write the complete report above to that exact path and return only
-this compact summary to chat; do not duplicate the complete report there.
+Orchestrated mode writes the complete report above to the supplied path and
+returns only this compact summary to chat; do not duplicate the complete report
+there. The rules in the rest of this section govern this mode.
 
 ```text
 Status: complete | blocked
@@ -313,7 +327,8 @@ Blocked checks: <list | none>
 `Commands` records every command that supplied evidence, including its
 observed outcome. The 1200-character limit applies only to `Summary`, not to
 the command list. Use `blocked` and name the unavailable checks when evidence
-cannot be obtained. If the orchestrator explicitly states that no feature
+cannot be obtained; `blocked` reports missing evidence about the code, never a
+reluctance to write the report file. If the orchestrator explicitly states that no feature
 directory exists, keep the complete report in chat and set `Report` to
 `chat (no feature directory)`; otherwise, a supplied report path must be
 written before returning the summary.
@@ -332,10 +347,6 @@ path, followed by a short explanation of what was found there. Do not return
 the ordinary compact summary or choose another path yourself. Do not delete,
 rename, or overwrite a file owned by another role: the orchestrator owns path
 selection and numbering.
-
-These checks apply only to this orchestrated mode. Without both the supplied
-path and compact return format, keep the existing independent behavior of
-returning the complete report in chat.
 
 ## Gotchas
 
@@ -397,8 +408,8 @@ returning the complete report in chat.
   implementation.
 
 - **`document-skills:frontend-design`** — for React UI-fidelity tasks
-  (visual quality, design polish), see `references/frontend-react.md`
-  §9. If installed, activates visual design discipline. If not
+  (visual quality, design polish), see the integration section of
+  `references/frontend-react.md`. If installed, activates visual design discipline. If not
   installed, graceful degrade to universal principles.
 
 ## When references are missing

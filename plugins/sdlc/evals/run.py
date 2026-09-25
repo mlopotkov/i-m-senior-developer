@@ -21,6 +21,7 @@ SUITE = EvalSuite(
             "mined-guards-code-diff",
             "mined-guards-implementer",
             "mined-guards-prose-diff",
+            "orchestrated-report-write",
             "working-tree-coverage",
         }
     ),
@@ -45,7 +46,8 @@ SUITE = EvalSuite(
         "2",
         # Кейсам нужны разные инструменты: ревьюеру Bash, архитектору Write,
         # реализатору оба. Список выдаётся общий, а сужает его каждый кейс
-        # своим allowed_tools.
+        # своим allowed_tools. Здесь перечислены только гейтящиеся оператором
+        # инструменты; Agent к ним не относится и запрашивается самим кейсом.
         "--allow-tools",
         "Bash",
         "Write",
@@ -59,7 +61,7 @@ SUITE = EvalSuite(
         "--judge-model",
         "haiku",
     ),
-    default_max_cost_usd="32.00",
+    default_max_cost_usd="38.00",
     results_root_variable="SDLC_EVAL_RESULTS_ROOT",
 )
 

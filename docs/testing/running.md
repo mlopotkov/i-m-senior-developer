@@ -81,7 +81,7 @@ python3 plugins/sdlc/evals/run.py
 
 | Переменная | Назначение | По умолчанию |
 |---|---|---|
-| `MAX_COST_USD` | предел стоимости прогона | `6.00`, у `sdlc` — `32.00` |
+| `MAX_COST_USD` | предел стоимости прогона | `6.00`, у `sdlc` — `38.00` |
 | `CLAUDE_BIN` | путь к CLI, нужен тестам скрипта | `claude` |
 | `PLANNER_EVAL_RESULTS_ROOT`, `SDLC_EVAL_RESULTS_ROOT`, `CLARITY_LANGUAGE_EVAL_RESULTS_ROOT` | корень результатов своего плагина, нужен тестам скрипта | каталог `evals/results` |
 

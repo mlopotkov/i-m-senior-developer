@@ -90,6 +90,8 @@ Based on step 2:
 
 Use the output format template below. Resolve the target path in this order: the document named by the orchestrator (under `/plan-do` this is the `ARCHITECTURE.md` referenced in the execution plan header) → the project's convention from `planner-context.md` §5 → `<feature-dir>/ARCH-NN.md`. Update that document in place; never add a second architecture file beside it, because the execution plan's freshness gate tracks one path only. Every section in the template is required; use `— none identified yet` rather than omitting a section entirely.
 
+The architecture document is the required artifact of this skill, not an optional deliverable. The resolved target path is the explicit request that the general rule against creating `*.md` files defers to; that file usually already exists, so the write fills it rather than creating a file. Returning the architecture as chat prose instead of writing it, or reporting the design blocked because documents may not be created, is a contract violation. Attempt the write. Report only a refusal the tool returned, quoted verbatim. An anticipated refusal is not a refusal.
+
 Work through the template in order:
 - Start with Bounded Contexts — name all contexts before filling hand-off contracts. Every row fills `Forbidden imports`; a framework-free core names the framework package there, not only in prose.
 - Fill Hand-off Contracts after contexts are named — each row requires both contexts to exist.
@@ -112,7 +114,7 @@ Stack detection is Step 2 above — Python markers first (`pyproject.toml`, `req
 
 ## Output format — architecture document
 
-Write the following template to `<feature-dir>/ARCH-NN.md`. Every section is required. Use `— none identified yet` if a section is empty at time of writing, but the architect must not silently skip Open Questions — if there are genuinely no open questions, write `— architecture is complete as stated`.
+Write the following template to the target path resolved in Step 4 (`<feature-dir>/ARCH-NN.md` when nothing else applies). Returning it as chat prose is not an alternative to the file. Every section is required. Use `— none identified yet` if a section is empty at time of writing, but the architect must not silently skip Open Questions — if there are genuinely no open questions, write `— architecture is complete as stated`.
 
 ```markdown
 # <FEAT-XXXX> Architecture (ARCH-NN)
