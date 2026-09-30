@@ -28,6 +28,18 @@ import tempfile
 
 ID_PATTERN = re.compile(r"(?:DPF|LPF)-[\w-]+", re.UNICODE)
 MAX_HINTS = 3
+PACKAGES_DIRNAME = ".dpf"
+PATHS_FILENAME = ".dpf.paths"
+BANK_LINKS_DIRNAME = "dpf.d"
+BANK_OWNERS_DIRNAME = ".fpf_banks"
+COMPETENCY_MAP_NAME = "competency-map.md"
+
+# Прежние имена того же назначения: читаются после канонических внутри своего
+# уровня, пока установка не перенесена отдельной командой.
+LEGACY_PACKAGES_DIRNAME = "frameworks"
+LEGACY_PATHS_FILENAME = "frameworks.paths"
+LEGACY_BANK_LINKS_DIRNAME = "frameworks.d"
+LEGACY_PUBLISHED_FILENAME = "frameworks.published"
 
 
 def resolve_script_path() -> str:
@@ -62,13 +74,18 @@ def fetch_known_ids(resolve_path: str) -> set[str]:
 
 
 def admitted(row: dict) -> bool:
-    """Пакет из опубликованного корня без подтверждённого допуска не подсказываем.
+    """Свод, который резолвер применять не даст, здесь не подсказываем.
 
-    Подсказка ведёт к применению, поэтому недопущенный пакет здесь молчит:
-    предложить его — то же, что выдать. Строки без полей допуска приходят от
-    прежней версии резолвера и остаются допущенными.
+    Подсказка ведёт к применению, поэтому предложить недопущенный свод — то же,
+    что выдать его. Правило берётся из той же выдачи резолвера и не зависит от
+    происхождения пути. Строки без поля состояния оценки приходят от прежней
+    версии резолвера и остаются допущенными.
     """
-    return not row.get("published") or bool(row.get("admissible"))
+    if "assessment" not in row:
+        return True
+    if row.get("structure_problem") or row.get("stale"):
+        return False
+    return bool(row.get("admissible") or row.get("trusted_by_project"))
 
 
 def read_source_paths(path: str) -> list[str]:
@@ -91,15 +108,32 @@ def build_levels() -> list[tuple[str, str]]:
     """
     home = os.path.expanduser("~")
     claude_dir = os.path.join(home, ".claude")
-    source_roots = [
-        ("project", os.path.join(os.getcwd(), ".claude", "frameworks")),
-        ("user", os.path.join(claude_dir, "frameworks")),
-    ]
+    project_claude_dir = os.path.join(os.getcwd(), ".claude")
+
+    def declared(filename):
+        return [
+            root if os.path.isabs(root) else os.path.join(os.getcwd(), root)
+            for root in read_source_paths(os.path.join(project_claude_dir, filename))
+        ]
+
+    source_roots = [("project", os.path.join(project_claude_dir, PACKAGES_DIRNAME))]
+    source_roots.extend(("project", root) for root in declared(PATHS_FILENAME))
+    source_roots.append(("project", os.path.join(project_claude_dir, LEGACY_PACKAGES_DIRNAME)))
+    source_roots.extend(("project", root) for root in declared(LEGACY_PATHS_FILENAME))
+
+    source_roots.append(("user", os.path.join(claude_dir, PACKAGES_DIRNAME)))
+    source_roots.append(("user", os.path.join(claude_dir, LEGACY_PACKAGES_DIRNAME)))
+
     source_roots.extend(
-        ("plugin", root) for root in read_source_paths(os.path.join(claude_dir, "frameworks.paths"))
+        ("plugin", root) for root in read_source_paths(os.path.join(claude_dir, PATHS_FILENAME))
     )
+    source_roots.append(("plugin", os.path.join(claude_dir, BANK_LINKS_DIRNAME)))
     source_roots.extend(
-        ("plugin", root) for root in read_source_paths(os.path.join(claude_dir, "frameworks.published"))
+        ("plugin", root) for root in read_source_paths(os.path.join(claude_dir, LEGACY_PATHS_FILENAME))
+    )
+    source_roots.append(("plugin", os.path.join(claude_dir, LEGACY_BANK_LINKS_DIRNAME)))
+    source_roots.extend(
+        ("plugin", root) for root in read_source_paths(os.path.join(claude_dir, LEGACY_PUBLISHED_FILENAME))
     )
 
     levels = []
@@ -157,11 +191,28 @@ def parse_competency_map(path: str) -> list[dict]:
     return result
 
 
+def competency_map_paths(root: str) -> list[str]:
+    """Карты корня: своя плюс карты банков, опубликовавших сюда свои ссылки.
+
+    В каталоге ссылок сам корень карты не несёт — она остаётся в поставке банка
+    и подключается его собственным каталогом владельца, поэтому подсказка по
+    ключевым словам работает без копии файла.
+    """
+    paths = [os.path.join(root, COMPETENCY_MAP_NAME)]
+    owners_dir = os.path.join(root, BANK_OWNERS_DIRNAME)
+    try:
+        owners = sorted(os.listdir(owners_dir))
+    except OSError:
+        return paths
+    paths.extend(os.path.join(owners_dir, owner, COMPETENCY_MAP_NAME) for owner in owners)
+    return paths
+
+
 def collect_competency_rows() -> list[dict]:
     rows: list[dict] = []
     for _level, root in build_levels():
-        map_path = os.path.join(root, "competency-map.md")
-        rows.extend(parse_competency_map(map_path))
+        for map_path in competency_map_paths(root):
+            rows.extend(parse_competency_map(map_path))
     return rows
 
 

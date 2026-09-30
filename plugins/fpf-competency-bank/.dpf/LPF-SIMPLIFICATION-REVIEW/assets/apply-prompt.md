@@ -11,8 +11,8 @@
 reviewer стадии / оркестратор; reopenCondition = см. §11 `DPF.md` refresh triggers). Не открывай
 файлы по относительному пути — резолвь по id в порядке:
 
-1. проект — `<repo>/.claude/frameworks/<id>/DPF.md`
-2. пользователь — `~/.claude/frameworks/<id>/DPF.md`
+1. проект — `<repo>/.claude/.dpf/<id>/DPF.md` (до переноса путей — `.claude/frameworks/<id>/DPF.md`)
+2. пользователь — `~/.claude/.dpf/<id>/DPF.md` (до переноса — `~/.claude/frameworks/<id>/DPF.md`)
 3. плагины — путь из конфига плагина
 
 Прочитать целиком:

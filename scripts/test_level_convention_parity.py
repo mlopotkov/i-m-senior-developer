@@ -82,23 +82,36 @@ def assert_same_levels(
 
 
 def assert_full_source_convention(resolve_module: ModuleType, hint_module: ModuleType) -> None:
+    """Канонические и прежние имена вместе: прежние идут следом внутри уровня."""
     with tempfile.TemporaryDirectory() as temporary:
         temporary_root = Path(temporary)
         home = temporary_root / "home"
         project = temporary_root / "project"
         claude_dir = home / ".claude"
-        project_root = project / ".claude" / "frameworks"
-        user_root = claude_dir / "frameworks"
-        paths_root = temporary_root / "paths-frameworks"
-        published_root = temporary_root / "published-frameworks"
+        project_root = project / ".claude" / ".dpf"
+        project_legacy_root = project / ".claude" / "frameworks"
+        user_root = claude_dir / ".dpf"
+        user_legacy_root = claude_dir / "frameworks"
+        paths_root = temporary_root / "paths-packages"
+        legacy_paths_root = temporary_root / "legacy-paths-packages"
+        published_root = temporary_root / "published-packages"
         paths_alias = temporary_root / "paths-alias"
 
-        for directory in (project_root, user_root, paths_root, published_root):
+        for directory in (
+            project_root,
+            project_legacy_root,
+            user_root,
+            user_legacy_root,
+            paths_root,
+            legacy_paths_root,
+            published_root,
+        ):
             directory.mkdir(parents=True)
         paths_alias.symlink_to(paths_root, target_is_directory=True)
-        (claude_dir / "frameworks.paths").write_text(
+        (claude_dir / ".dpf.paths").write_text(
             f"# локальный источник плагина\n\n{paths_root}\n", encoding="utf-8"
         )
+        (claude_dir / "frameworks.paths").write_text(f"{legacy_paths_root}\n", encoding="utf-8")
         (claude_dir / "frameworks.published").write_text(
             f"# опубликованные источники\n{published_root}\n{paths_alias}\n", encoding="utf-8"
         )
@@ -110,9 +123,47 @@ def assert_full_source_convention(resolve_module: ModuleType, hint_module: Modul
             project,
             [
                 ("project", str(project_root)),
+                ("project", str(project_legacy_root)),
                 ("user", str(user_root)),
+                ("user", str(user_legacy_root)),
                 ("plugin", str(paths_root)),
+                ("plugin", str(claude_dir / "dpf.d")),
+                ("plugin", str(legacy_paths_root)),
+                ("plugin", str(claude_dir / "frameworks.d")),
                 ("plugin", str(published_root)),
+            ],
+        )
+
+
+def assert_project_paths_convention(resolve_module: ModuleType, hint_module: ModuleType) -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        temporary_root = Path(temporary)
+        home = temporary_root / "home"
+        project = temporary_root / "project"
+        claude_dir = home / ".claude"
+        project_root = project / ".claude" / ".dpf"
+        project_declared = project / "dpf"
+        user_root = claude_dir / ".dpf"
+
+        for directory in (project_root, project_declared, user_root):
+            directory.mkdir(parents=True)
+        (project / ".claude" / ".dpf.paths").write_text(
+            f"# свои своды проекта\n{project_declared}\n", encoding="utf-8"
+        )
+
+        assert_same_levels(
+            resolve_module,
+            hint_module,
+            home,
+            project,
+            [
+                ("project", str(project_root)),
+                ("project", str(project_declared)),
+                ("project", str(project / ".claude" / "frameworks")),
+                ("user", str(user_root)),
+                ("user", str(claude_dir / "frameworks")),
+                ("plugin", str(claude_dir / "dpf.d")),
+                ("plugin", str(claude_dir / "frameworks.d")),
             ],
         )
 
@@ -123,13 +174,13 @@ def assert_missing_published_convention(resolve_module: ModuleType, hint_module:
         home = temporary_root / "home"
         project = temporary_root / "project"
         claude_dir = home / ".claude"
-        project_root = project / ".claude" / "frameworks"
-        user_root = claude_dir / "frameworks"
-        paths_root = temporary_root / "paths-frameworks"
+        project_root = project / ".claude" / ".dpf"
+        user_root = claude_dir / ".dpf"
+        paths_root = temporary_root / "paths-packages"
 
         for directory in (project_root, user_root, paths_root):
             directory.mkdir(parents=True)
-        (claude_dir / "frameworks.paths").write_text(f"{paths_root}\n", encoding="utf-8")
+        (claude_dir / ".dpf.paths").write_text(f"{paths_root}\n", encoding="utf-8")
 
         assert_same_levels(
             resolve_module,
@@ -138,8 +189,12 @@ def assert_missing_published_convention(resolve_module: ModuleType, hint_module:
             project,
             [
                 ("project", str(project_root)),
+                ("project", str(project / ".claude" / "frameworks")),
                 ("user", str(user_root)),
+                ("user", str(claude_dir / "frameworks")),
                 ("plugin", str(paths_root)),
+                ("plugin", str(claude_dir / "dpf.d")),
+                ("plugin", str(claude_dir / "frameworks.d")),
             ],
         )
 
@@ -148,6 +203,7 @@ def assert_level_convention_parity(root: Path = REPOSITORY_ROOT) -> None:
     resolve_module, hint_module = load_level_builders(root)
     assert_full_source_convention(resolve_module, hint_module)
     assert_missing_published_convention(resolve_module, hint_module)
+    assert_project_paths_convention(resolve_module, hint_module)
 
 
 def test__level_conventions__same_source_files__same_levels() -> None:

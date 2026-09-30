@@ -98,7 +98,7 @@ claude --plugin-dir plugins/functional-clarity --plugin-dir plugins/tdd-master -
 
 ### [fpf-competency-bank](plugins/fpf-competency-bank/)
 
-Задаёт правила, по которым компетенция попадает в банк, и служит источником готовых сводов для `fpf-integration`. Подключается строкой в `~/.claude/frameworks.paths`, исполняется резолвером из `fpf-integration`.
+Задаёт правила, по которым компетенция попадает в банк, и служит источником готовых сводов для `fpf-integration`. Подключается сам: хук банка кладёт по ссылке на каждый свод в `~/.claude/dpf.d/`, а исполняет их резолвер из `fpf-integration`.
 
 ## Смежные проекты
 

@@ -1,6 +1,6 @@
 {
   "name": "fpf-competency-bank",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Задаёт правила, по которым компетенция попадает в банк, и служит источником готовых сводов для fpf-integration.",
   "dependencies": [
     "fpf-integration"

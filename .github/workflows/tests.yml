@@ -65,7 +65,7 @@ jobs:
         run: |
           set -e
           m=plugins/fpf-integration/skills/dpf-authoring/assets/maturity.py
-          bank=plugins/fpf-competency-bank/frameworks
+          bank=plugins/fpf-competency-bank/.dpf
           got_dpf=$(python3 "$m" "$bank/DPF-COUPLING-GENERALIZATION" --json | python3 -c "import sys,json;print(json.load(sys.stdin)['level'])")
           got_lpf=$(python3 "$m" "$bank/LPF-SIMPLIFICATION-REVIEW" --json | python3 -c "import sys,json;print(json.load(sys.stdin)['level'])")
           echo "DPF-COUPLING=$got_dpf  LPF-SIMPLIFICATION=$got_lpf"
@@ -77,10 +77,10 @@ jobs:
         run: |
           set -e
           m=plugins/fpf-integration/skills/dpf-authoring/assets/maturity.py
-          bank=plugins/fpf-competency-bank/frameworks
+          bank=plugins/fpf-competency-bank/.dpf
           python3 "$m" "$bank/DPF-COUPLING-GENERALIZATION" >/dev/null
           python3 "$m" "$bank/LPF-SIMPLIFICATION-REVIEW" >/dev/null
-          changed=$(git status --porcelain -- 'plugins/fpf-competency-bank/frameworks/*/DPF.md')
+          changed=$(git status --porcelain -- 'plugins/fpf-competency-bank/.dpf/*/DPF.md')
           test -z "$changed" || { echo "::error::seed DPF.md изменён прогоном maturity.py:"; echo "$changed"; exit 1; }
 
   # Сборка документации Zensical. Публикация на master остаётся в docs.yml;
