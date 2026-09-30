@@ -10,7 +10,8 @@ description: >-
   тремя режимами: вшить шаг в существующий протокол (merge), поставить полный
   протокол (install-full) или лёгкий (install-light). НЕ исполняет сам ритуал —
   только ставит его.
-version: 1.0.1
+metadata:
+  version: "1.0.1"
 ---
 
 # end-session-setup — установка ритуала end-session с шагом worked-evidence

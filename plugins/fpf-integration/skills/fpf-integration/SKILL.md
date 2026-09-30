@@ -7,7 +7,8 @@ description: >
   "alternatives check", "evidence graph review", "bounded context audit", "terminology drift",
   mentions "First Principles Framework" or "FPF", or wants to improve decision-making
   quality in a multi-agent system.
-version: 0.3.0
+metadata:
+  version: "0.3.0"
 ---
 
 # FPF Integration for Multi-Agent Systems

@@ -9,7 +9,8 @@ description: >-
   компетенций (Domain/Local Practice Frameworks, FPF E.4.DPF): находит пакет по
   уровням project→user→plugin, проверяет свежесть (E.4.DPF.DA), затем либо читает
   свод в контекст (ground), либо спаунит агента по assets/apply-prompt.md (apply).
-version: 2.0.0
+metadata:
+  version: "2.0.0"
 ---
 
 # dpf-apply — резолвер и исполнитель пакетов компетенций

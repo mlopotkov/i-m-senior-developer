@@ -15,7 +15,8 @@ description: >-
   language for engineers, intentional informal tone, and no stale agreement left
   behind by a term replacement.
   NOT for English prose, and NOT for fiction (use ai-prose-detector for fiction).
-version: 0.4.0
+metadata:
+  version: "0.4.0"
 ---
 
 # Russian Style — естественный русский без AI-кальки

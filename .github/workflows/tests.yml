@@ -14,8 +14,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Юнит-тесты плагинов и скриптов-стражей (stdlib unittest, без зависимостей).
-      # Каждый test_*.py сам добавляет свой каталог в sys.path — запускаем по пути.
+      # Разбор YAML-заголовков навыков по схеме требует настоящего парсера:
+      # поиск строк не отличает вложенное поле от верхнеуровневого.
+      - name: install PyYAML
+        run: pip install pyyaml
+
+      # Юнит-тесты плагинов и скриптов-стражей (stdlib unittest, кроме стража
+      # заголовков навыков). Каждый test_*.py сам добавляет свой каталог в
+      # sys.path — запускаем по пути.
       - name: unit tests
         run: |
           set -e
@@ -31,6 +37,12 @@ jobs:
 
       - name: builtin provider guard
         run: python3 scripts/check_builtin_providers.py
+
+      # Заголовок навыка держится набора полей спецификации Agent Skills:
+      # версия живёт в metadata.version, верхнеуровневое поле вне набора
+      # клиент вправе отклонить вместе со всем файлом.
+      - name: skill frontmatter guard
+        run: python3 scripts/check_skill_frontmatter.py
 
       # Вне hooks путь к ресурсам плагина приходит только подстановкой:
       # команда или скилл не читает CLAUDE_PLUGIN_ROOT во время работы.

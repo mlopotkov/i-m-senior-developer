@@ -8,7 +8,8 @@ description: >-
   "выдуманный флоу", "negation of nothing", "leaked invariant". Also triggered proactively
   by an orchestrating agent after review rounds, before docs-repo publication, and after batch
   edits to documentation. Catches 12 common AI-authoring antipatterns with FPF grounding.
-version: 0.2.1
+metadata:
+  version: "0.2.1"
 ---
 
 # Clarity Validator

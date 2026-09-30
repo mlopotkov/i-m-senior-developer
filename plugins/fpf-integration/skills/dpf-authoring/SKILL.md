@@ -1,7 +1,8 @@
 ---
 name: dpf-authoring
 description: This skill should be used when the user asks to "создай DPF", "доавтори DPF", "авторинг DPF", "собери DPF для компетенции", "обнови DPF", "переоцени DPF", "переоцени пакет по E.4.DPF.DA", "отремонтируй DPF", "прогони dpf-authoring", "author a DPF", or mentions DPF-компетенции со статусом стаб/seedOnly, требующие доавторинга. Самодостаточный access-carrier метода DPF-AUTHORING (FPF E.4.DPF × G.2, редакция f7c7e93f); работает из любого проекта, DPF пишутся в явно указанный repoRoot.
-version: 2.5.0
+metadata:
+  version: "2.5.0"
 ---
 
 # DPF-Authoring — авторинг сводов принципов (DPF) по FPF
