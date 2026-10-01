@@ -6,10 +6,10 @@
 человека, а не побочный итог старта сессии. Без `--apply` команда ничего не
 пишет: она печатает список предстоящих операций.
 
-Договор безопасности: команда сначала проверяет весь план целиком и отказывает
-целиком, если хотя бы одна операция небезопасна — занятое имя назначения,
-чужая ссылка банка, нечитаемая запись. Частичного переноса не бывает, потому
-что наполовину перенесённая установка хуже любой из двух целых.
+Команда проверяет план до записи и отказывает без изменений при найденном
+конфликте: занятом имени назначения, чужой ссылке банка, нечитаемой записи.
+Если запись на диск сорвётся уже при выполнении плана, ранее сделанные операции
+не откатываются: команда сообщит о возможном частичном переносе.
 
 Не переносит `~/.claude/frameworks.published`: строки в нём принадлежат
 банкам, и заменить их может только владелец банка при следующем запуске. Файл
@@ -20,7 +20,8 @@ CLI:
 
 Коды возврата:
   0  — план показан или выполнен
-  3  — операция небезопасна, ничего не изменено
+  3  — конфликт в плане, ничего не изменено
+  4  — ошибка записи, перенос мог выполниться частично
   64 — неверный вызов
 """
 
@@ -34,6 +35,7 @@ from typing import NoReturn
 
 EXIT_OK = 0
 EXIT_REFUSED = 3
+EXIT_APPLY_FAILED = 4
 EXIT_USAGE = 64
 
 PACKAGES_DIRNAME = ".dpf"
@@ -150,9 +152,58 @@ def link_owner(link_path: Path, links_dir: Path) -> str | None:
     if parts[: len(root_parts)] != root_parts:
         return None
     rest = parts[len(root_parts) :]
-    if len(rest) < 3 or rest[0] not in LEGACY_OWNERS_DIRNAMES:
+    if len(rest) != 3 or rest[0] not in LEGACY_OWNERS_DIRNAMES or rest[2] != link_path.name:
         return None
     return rest[1]
+
+
+def owner_record(flat: Path) -> Path:
+    """Точное имя записи, на которую указывает плоская ссылка, без разыменования."""
+    target = Path(os.readlink(flat))
+    if not target.is_absolute():
+        target = flat.parent / target
+    return Path(os.path.normpath(target))
+
+
+def canonical_bank_pair(flat: Path, owner_link: Path, links_dir: Path, owner: str) -> bool:
+    return (
+        link_owner(flat, links_dir) == owner
+        and owner_record(flat) == owner_link
+        and owner_link.is_symlink()
+        and owner_link.resolve().name == flat.name
+        and (owner_link / "DPF.md").is_file()
+    )
+
+
+def plan_bank_maps(plan: Plan, legacy_links: Path, new_links: Path) -> None:
+    maps: dict[str, list[Path]] = {}
+    for owners_name in LEGACY_OWNERS_DIRNAMES:
+        owners_dir = legacy_links / owners_name
+        if not owners_dir.is_dir():
+            continue
+        for bank_dir in owners_dir.iterdir():
+            if not bank_dir.is_dir() or bank_dir.is_symlink():
+                plan.refusals.append(f"каталог владельца банка повреждён: {bank_dir}")
+                continue
+            old_map = bank_dir / "competency-map.md"
+            if os.path.lexists(old_map):
+                maps.setdefault(bank_dir.name, []).append(old_map)
+    for bank, sources in maps.items():
+        target = new_links / BANK_OWNERS_DIRNAME / bank / "competency-map.md"
+        if any(not source.is_symlink() for source in sources):
+            plan.refusals.append(f"карта банка {bank}: запись владельца не является ссылкой")
+            continue
+        if os.path.lexists(target):
+            if not target.is_symlink() or not target.is_file():
+                plan.refusals.append(f"карта банка {bank} уже существует, но не читается: {target}")
+                continue
+        else:
+            working = [source for source in sources if source.is_file()]
+            if len(working) != 1 or len(sources) != 1:
+                plan.refusals.append(f"карта банка {bank}: нет единственного рабочего источника")
+                continue
+            plan.links.append((target, working[0].resolve(), "map"))
+        plan.removals.extend(sources)
 
 
 def plan_bank_links(plan: Plan, claude_dir: Path) -> None:
@@ -170,33 +221,44 @@ def plan_bank_links(plan: Plan, claude_dir: Path) -> None:
                 "перенесите её сами или удалите"
             )
             continue
-        owner_source = None
-        for owners_dirname in LEGACY_OWNERS_DIRNAMES:
-            candidate = legacy_links / owners_dirname / owner / entry.name
-            if os.path.lexists(candidate):
-                owner_source = candidate
-                break
-        if owner_source is None:
-            plan.refusals.append(f"у ссылки {entry} нет записи владельца: перенос отменён")
+        record = owner_record(entry)
+        old_records = [
+            legacy_links / owners_name / owner / entry.name
+            for owners_name in LEGACY_OWNERS_DIRNAMES
+            if os.path.lexists(legacy_links / owners_name / owner / entry.name)
+        ]
+        if record not in old_records or any(not path.is_symlink() for path in old_records):
+            plan.refusals.append(f"у ссылки {entry} нет корректной записи владельца: перенос отменён")
             continue
-        owner_target = os.readlink(owner_source) if owner_source.is_symlink() else str(owner_source)
         owner_destination = new_links / BANK_OWNERS_DIRNAME / owner / entry.name
         flat_destination = new_links / entry.name
         if os.path.lexists(owner_destination) or os.path.lexists(flat_destination):
-            plan.refusals.append(
-                f"свод {entry.name} уже опубликован в {new_links}: перенос отменён"
+            if not canonical_bank_pair(flat_destination, owner_destination, new_links, owner):
+                plan.refusals.append(
+                    f"свод {entry.name} уже опубликован в {new_links}: перенос отменён"
+                )
+                continue
+        else:
+            if not record.exists():
+                plan.refusals.append(f"ссылка {entry}: прежняя цель недоступна, перенос отменён")
+                continue
+            plan.links.append((owner_destination, record.resolve(), "owner"))
+            plan.links.append(
+                (flat_destination, Path(BANK_OWNERS_DIRNAME) / owner / entry.name, "flat")
             )
+        plan.removals.extend((entry, *old_records))
+    plan_bank_maps(plan, legacy_links, new_links)
+    removed = set(plan.removals)
+    for owners_name in LEGACY_OWNERS_DIRNAMES:
+        owners_dir = legacy_links / owners_name
+        if not owners_dir.is_dir():
             continue
-        plan.links.append((owner_destination, Path(owner_target), "owner"))
-        plan.links.append(
-            (
-                flat_destination,
-                Path(os.path.join(BANK_OWNERS_DIRNAME, owner, entry.name)),
-                "flat",
-            )
-        )
-        plan.removals.append(entry)
-        plan.removals.append(owner_source)
+        for bank_dir in owners_dir.iterdir():
+            if not bank_dir.is_dir() or bank_dir.is_symlink():
+                continue
+            for entry in bank_dir.iterdir():
+                if entry not in removed and not any(str(entry) in reason for reason in plan.refusals):
+                    plan.notes.append(f"прежняя запись осталась без переноса: {entry}")
 
 
 def build_plan(project: Path, home: Path) -> Plan:
@@ -233,7 +295,7 @@ def describe(plan: Plan) -> str:
         lines.append(f"замечание: {note}")
     for refusal in plan.refusals:
         lines.append(f"ОТКАЗ: {refusal}")
-    if plan.empty and not plan.refusals:
+    if plan.empty and not plan.refusals and not plan.notes:
         lines.append("переносить нечего: установка уже на канонических путях")
     return "\n".join(lines)
 
@@ -291,7 +353,11 @@ def main(argv: list[str] | None = None) -> int:
             print("это только план; выполнить перенос: тот же вызов с --apply")
         return EXIT_OK
 
-    apply_plan(plan)
+    try:
+        apply_plan(plan)
+    except OSError as exc:
+        print(f"ошибка записи: {exc}; перенос мог выполниться частично, проверьте пути заново")
+        return EXIT_APPLY_FAILED
     return EXIT_OK
 
 

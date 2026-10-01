@@ -154,6 +154,76 @@ class ApplyTests(MigrationTestCase):
                     os.path.join(".fpf_banks", "fpf-competency-bank", "DPF-BANK"),
                 )
 
+    def test__same_bank_already_published__keeps_new_links_and_moves_project(self):
+        for owners_name in (".banks", ".fpf_banks"):
+            with self.subTest(owners_name=owners_name):
+                self.setUp()
+                self.make_package(self.project_claude / "frameworks", "DPF-PROJECT")
+                legacy = self.home_claude / "frameworks.d"
+                old_owner = legacy / owners_name / "bank-a"
+                old_owner.mkdir(parents=True)
+                canonical = self.home_claude / "dpf.d"
+                new_owner = canonical / ".fpf_banks" / "bank-a"
+                new_owner.mkdir(parents=True)
+                for pkg_id in ("DPF-ONE", "LPF-TWO"):
+                    old_target = self.root / "removed-plugin" / "frameworks" / pkg_id
+                    os.symlink(old_target, old_owner / pkg_id)
+                    os.symlink(f"{owners_name}/bank-a/{pkg_id}", legacy / pkg_id)
+                    package = self.make_package(self.root / "current-plugin" / ".dpf", pkg_id)
+                    os.symlink(package, new_owner / pkg_id)
+                    os.symlink(f".fpf_banks/bank-a/{pkg_id}", canonical / pkg_id)
+                original = {pkg_id: os.readlink(canonical / ".fpf_banks" / "bank-a" / pkg_id)
+                            for pkg_id in ("DPF-ONE", "LPF-TWO")}
+                before = self.tree()
+
+                preview_code, preview = self.run_migration()
+
+                self.assertEqual(preview_code, 0, preview)
+                self.assertEqual(self.tree(), before)
+                code, report = self.run_migration("--apply")
+                self.assertEqual(code, 0, report)
+                self.assertTrue((self.project_claude / ".dpf" / "DPF-PROJECT" / "DPF.md").is_file())
+                for pkg_id, target in original.items():
+                    self.assertEqual(os.readlink(new_owner / pkg_id), target)
+                    self.assertFalse(os.path.lexists(legacy / pkg_id))
+                    self.assertFalse(os.path.lexists(old_owner / pkg_id))
+                    self.assertTrue((canonical / pkg_id / "DPF.md").is_file())
+
+    def test__existing_canonical_map__keeps_new_map_and_retires_old_one(self):
+        legacy = self.home_claude / "frameworks.d"
+        old_owner = legacy / ".banks" / "bank-a"
+        old_owner.mkdir(parents=True)
+        canonical_owner = self.home_claude / "dpf.d" / ".fpf_banks" / "bank-a"
+        canonical_owner.mkdir(parents=True)
+        old_map = self.root / "removed-plugin" / "frameworks" / "competency-map.md"
+        new_map = self.root / "current-plugin" / ".dpf" / "competency-map.md"
+        new_map.parent.mkdir(parents=True)
+        new_map.write_text("current map\n", encoding="utf-8")
+        os.symlink(old_map, old_owner / "competency-map.md")
+        os.symlink(new_map, canonical_owner / "competency-map.md")
+
+        code, report = self.run_migration("--apply")
+
+        self.assertEqual(code, 0, report)
+        self.assertEqual((canonical_owner / "competency-map.md").read_text(), "current map\n")
+        self.assertFalse(os.path.lexists(old_owner / "competency-map.md"))
+
+    def test__owner_only_map__moves_when_no_canonical_map_exists(self):
+        old_owner = self.home_claude / "frameworks.d" / ".banks" / "bank-a"
+        old_owner.mkdir(parents=True)
+        source = self.root / "old-bank" / "frameworks" / "competency-map.md"
+        source.parent.mkdir(parents=True)
+        source.write_text("legacy map\n", encoding="utf-8")
+        os.symlink(source, old_owner / "competency-map.md")
+
+        code, report = self.run_migration("--apply")
+
+        self.assertEqual(code, 0, report)
+        migrated = self.home_claude / "dpf.d" / ".fpf_banks" / "bank-a" / "competency-map.md"
+        self.assertTrue(migrated.is_symlink())
+        self.assertEqual(migrated.read_text(), "legacy map\n")
+        self.assertFalse(os.path.lexists(old_owner / "competency-map.md"))
+
     def test__apply__is_idempotent(self):
         self.make_package(self.project_claude / "frameworks", "DPF-ONE")
         self.run_migration("--apply")
@@ -204,6 +274,116 @@ class RefusalTests(MigrationTestCase):
         self.assertIn("не принадлежит известному банку", report)
         self.assertTrue((legacy_links / "DPF-FOREIGN").is_symlink())
         self.assertFalse((self.home_claude / "dpf.d" / "DPF-FOREIGN").exists())
+
+    def test__foreign_canonical_bank__refuses_without_moving_project(self):
+        self.make_package(self.project_claude / "frameworks", "DPF-PROJECT")
+        legacy = self.home_claude / "frameworks.d"
+        owner = legacy / ".banks" / "bank-a"
+        owner.mkdir(parents=True)
+        os.symlink(self.root / "old" / "DPF-ONE", owner / "DPF-ONE")
+        os.symlink(".banks/bank-a/DPF-ONE", legacy / "DPF-ONE")
+        canonical = self.home_claude / "dpf.d"
+        other = canonical / ".fpf_banks" / "bank-b"
+        other.mkdir(parents=True)
+        package = self.make_package(self.root / "bank-b", "DPF-ONE")
+        os.symlink(package, other / "DPF-ONE")
+        os.symlink(".fpf_banks/bank-b/DPF-ONE", canonical / "DPF-ONE")
+        before = self.tree()
+
+        code, report = self.run_migration("--apply")
+
+        self.assertEqual(code, migrate.EXIT_REFUSED)
+        self.assertIn("уже опубликован", report)
+        self.assertEqual(self.tree(), before)
+        self.assertFalse((self.project_claude / ".dpf").exists())
+
+    def test__canonical_owner_pointing_to_another_id__refuses(self):
+        legacy = self.home_claude / "frameworks.d"
+        owner = legacy / ".banks" / "bank-a"
+        owner.mkdir(parents=True)
+        os.symlink(self.root / "old" / "DPF-ONE", owner / "DPF-ONE")
+        os.symlink(".banks/bank-a/DPF-ONE", legacy / "DPF-ONE")
+        canonical = self.home_claude / "dpf.d"
+        current_owner = canonical / ".fpf_banks" / "bank-a"
+        current_owner.mkdir(parents=True)
+        other = self.make_package(self.root / "current", "DPF-OTHER")
+        os.symlink(other, current_owner / "DPF-ONE")
+        os.symlink(".fpf_banks/bank-a/DPF-ONE", canonical / "DPF-ONE")
+        before = self.tree()
+
+        code, report = self.run_migration("--apply")
+
+        self.assertEqual(code, migrate.EXIT_REFUSED)
+        self.assertIn("уже опубликован", report)
+        self.assertEqual(self.tree(), before)
+
+    def test__incomplete_same_bank_publication__refuses_without_changes(self):
+        legacy = self.home_claude / "frameworks.d"
+        owner = legacy / ".banks" / "bank-a"
+        owner.mkdir(parents=True)
+        os.symlink(self.root / "old" / "DPF-ONE", owner / "DPF-ONE")
+        os.symlink(".banks/bank-a/DPF-ONE", legacy / "DPF-ONE")
+        canonical = self.home_claude / "dpf.d"
+        canonical.mkdir()
+        os.symlink(".fpf_banks/bank-a/DPF-ONE", canonical / "DPF-ONE")
+        before = self.tree()
+
+        code, report = self.run_migration("--apply")
+
+        self.assertEqual(code, migrate.EXIT_REFUSED)
+        self.assertIn("уже опубликован", report)
+        self.assertEqual(self.tree(), before)
+
+    def test__mismatched_legacy_owner_record__refuses_without_changes(self):
+        legacy = self.home_claude / "frameworks.d"
+        owner = legacy / ".banks" / "bank-a"
+        owner.mkdir(parents=True)
+        other = legacy / ".fpf_banks" / "bank-a"
+        other.mkdir(parents=True)
+        (owner / "DPF-ONE").write_text("foreign owner record", encoding="utf-8")
+        os.symlink(self.root / "second" / "DPF-ONE", other / "DPF-ONE")
+        os.symlink(".fpf_banks/bank-a/DPF-ONE", legacy / "DPF-ONE")
+        before = self.tree()
+
+        code, report = self.run_migration("--apply")
+
+        self.assertEqual(code, migrate.EXIT_REFUSED)
+        self.assertIn("записи владельца", report)
+        self.assertEqual(self.tree(), before)
+
+    def test__write_failure__reports_partial_state_with_distinct_code(self):
+        self.make_package(self.project_claude / "frameworks", "DPF-PROJECT")
+        self.make_package(self.home_claude / "frameworks", "DPF-USER")
+        original = migrate.os.rename
+        calls = 0
+
+        def fail_after_first(source, destination):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OSError("disk failure")
+            return original(source, destination)
+
+        with mock.patch.object(migrate.os, "rename", side_effect=fail_after_first):
+            code, report = self.run_migration("--apply")
+
+        self.assertEqual(code, migrate.EXIT_APPLY_FAILED)
+        self.assertIn("частично", report)
+        self.assertIn("disk failure", report)
+        self.assertTrue((self.project_claude / ".dpf" / "DPF-PROJECT" / "DPF.md").is_file())
+
+    def test__unknown_owner_only_entry__is_preserved_and_reported(self):
+        owner = self.home_claude / "frameworks.d" / ".banks" / "bank-a"
+        owner.mkdir(parents=True)
+        extra = owner / "notes.txt"
+        extra.write_text("bank data", encoding="utf-8")
+
+        code, report = self.run_migration("--apply")
+
+        self.assertEqual(code, 0)
+        self.assertIn(str(extra), report)
+        self.assertNotIn("переносить нечего", report)
+        self.assertEqual(extra.read_text(encoding="utf-8"), "bank data")
 
     def test__legacy_published_file__is_only_reported(self):
         (self.home_claude / "frameworks.published").write_text("/some/bank/frameworks\n", encoding="utf-8")
