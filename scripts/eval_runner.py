@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-from typing import Any
+from typing import Any, Callable
 import tempfile
 import uuid
 
@@ -40,6 +40,7 @@ class EvalSuite:
     # case may name plugins only under the target. Such a suite points the run
     # at the directory holding all of them and names its eval dir below it.
     eval_target: str = ""
+    full_trace_validator: Callable[[object, Path], None] | None = None
 
 
 def run_claude(
@@ -286,7 +287,10 @@ def run_suite(suite: EvalSuite, arguments: list[str], repo_root: Path) -> int:
     validate_plugin(claude_bin, repo_root, suite)
     output_dir = fresh_output_path(results_root)
     run_eval(claude_bin, repo_root, suite, max_cost_usd, output_dir)
-    cost_usd, case_count = validate_result(load_result(output_dir), suite)
+    result = load_result(output_dir)
+    cost_usd, case_count = validate_result(result, suite)
+    if suite.full_trace_validator is not None:
+        suite.full_trace_validator(result, output_dir)
     print(f"OK: output={output_dir} costUsd={cost_usd} cases={case_count}")
     return 0
 

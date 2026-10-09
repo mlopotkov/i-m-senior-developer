@@ -50,7 +50,7 @@ class SdlcEvalRunnerTest(EvalRunnerTestCase):
         "--judge-model",
         "haiku",
     )
-    default_max_cost_usd = "38.00"
+    default_max_cost_usd = "100.00"
     results_root_variable = "SDLC_EVAL_RESULTS_ROOT"
 
 

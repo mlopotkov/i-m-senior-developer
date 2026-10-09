@@ -43,7 +43,7 @@ SUITE = EvalSuite(
         "--judge-model",
         "haiku",
     ),
-    default_max_cost_usd="6.00",
+    default_max_cost_usd="100.00",
     results_root_variable="CLARITY_LANGUAGE_EVAL_RESULTS_ROOT",
 )
 

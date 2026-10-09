@@ -2,6 +2,6 @@
   "sandbox": {
     "enabled": true,
     "enableWeakerNestedSandbox": true,
-    "bwrapPath": "/usr/local/bin/bwrap-noseccomp"
+    "bwrapPath": "/usr/bin/bwrap"
   }
 }

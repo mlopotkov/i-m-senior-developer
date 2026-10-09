@@ -25,6 +25,7 @@ class ClaudeCall(TypedDict):
 FAKE_CLAUDE = r'''#!/usr/bin/env python3
 import json
 import os
+import runpy
 from pathlib import Path
 import sys
 
@@ -82,6 +83,11 @@ def write_fixture(output_dir, fixture):
         raise SystemExit(90)
     output_dir.mkdir(parents=True)
     result = valid_result()
+    builder = os.environ.get("FAKE_CLAUDE_TRACE_BUILDER")
+    if builder:
+        sys.path.insert(0, str(Path(builder).parent))
+        module = runpy.run_path(builder)
+        result = module["attach_traces"](result, output_dir, os.environ.get("FAKE_CLAUDE_TRACE_VARIANT", "valid"))
     if fixture == "partial":
         result["partial"] = True
     elif fixture == "missing-case":
@@ -155,6 +161,7 @@ class EvalRunnerTestCase(unittest.TestCase):
     default_max_cost_usd: str = ""
     results_root_variable: str = ""
     runs_per_case: int = 3
+    trace_fixture: Path | None = None
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -193,6 +200,8 @@ class EvalRunnerTestCase(unittest.TestCase):
             }
         )
         env.pop("MAX_COST_USD", None)
+        if self.trace_fixture is not None:
+            env["FAKE_CLAUDE_TRACE_BUILDER"] = str(self.trace_fixture)
         if extra_env:
             env.update(extra_env)
         return subprocess.run(

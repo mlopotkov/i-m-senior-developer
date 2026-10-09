@@ -31,6 +31,7 @@ class PlannerEvalRunnerTest(EvalRunnerTestCase):
         "--allow-tools",
         "Bash,Write",
         "--scaffold",
+        "--keep-temp",
         "--no-publish",
         "--threshold",
         "1.0",
@@ -39,8 +40,25 @@ class PlannerEvalRunnerTest(EvalRunnerTestCase):
         "--judge-model",
         "haiku",
     )
-    default_max_cost_usd = "6.00"
+    default_max_cost_usd = "100.00"
     results_root_variable = "PLANNER_EVAL_RESULTS_ROOT"
+    trace_fixture = Path(__file__).with_name("test_baseline_delivery.py")
+
+    def test__runner__denied_baseline_skill__cannot_report_success(self):
+        result = self.run_runner(extra_env={"FAKE_CLAUDE_TRACE_VARIANT": "denied-skill"})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("baseline delivery", result.stderr)
+        self.assertIn("planner:product-baseline", result.stderr)
+
+    def test__runner__different_helper_source__cannot_report_success(self):
+        result = self.run_runner(extra_env={"FAKE_CLAUDE_TRACE_VARIANT": "fake-helper"})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("helper source", result.stderr)
+
+    def test__runner__altered_provider_response__cannot_report_success(self):
+        result = self.run_runner(extra_env={"FAKE_CLAUDE_TRACE_VARIANT": "changed-response"})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("differs from provider", result.stderr)
 
 
 if __name__ == "__main__":

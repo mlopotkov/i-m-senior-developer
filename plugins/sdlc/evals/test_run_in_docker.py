@@ -20,6 +20,9 @@ class SdlcDockerEvalRunnerTest(unittest.TestCase):
             command = build_docker_command(repo_root, "ccd-eval-py:latest")
 
         self.assertIn(f"PATH={SYSTEM_PATH}", command)
+        self.assertIn("SHELL=/bin/bash", command)
+        self.assertIn("CLAUDE_CODE_SHELL=/bin/bash", command)
+        self.assertIn("MAX_COST_USD", command)
         self.assertNotIn("pyenv", " ".join(command))
         self.assertNotIn("--platform", command)
         self.assertIn(
