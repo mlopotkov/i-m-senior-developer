@@ -14,8 +14,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Юнит-тесты плагинов и скриптов-стражей (stdlib unittest, без зависимостей).
-      # Каждый test_*.py сам добавляет свой каталог в sys.path — запускаем по пути.
+      # Разбор YAML-заголовков навыков по схеме требует настоящего парсера:
+      # поиск строк не отличает вложенное поле от верхнеуровневого.
+      - name: install PyYAML
+        run: pip install pyyaml
+
+      # Юнит-тесты плагинов и скриптов-стражей (stdlib unittest, кроме стража
+      # заголовков навыков). Каждый test_*.py сам добавляет свой каталог в
+      # sys.path — запускаем по пути.
       - name: unit tests
         run: |
           set -e
@@ -31,6 +37,12 @@ jobs:
 
       - name: builtin provider guard
         run: python3 scripts/check_builtin_providers.py
+
+      # Заголовок навыка держится набора полей спецификации Agent Skills:
+      # версия живёт в metadata.version, верхнеуровневое поле вне набора
+      # клиент вправе отклонить вместе со всем файлом.
+      - name: skill frontmatter guard
+        run: python3 scripts/check_skill_frontmatter.py
 
       # Вне hooks путь к ресурсам плагина приходит только подстановкой:
       # команда или скилл не читает CLAUDE_PLUGIN_ROOT во время работы.
@@ -53,7 +65,7 @@ jobs:
         run: |
           set -e
           m=plugins/fpf-integration/skills/dpf-authoring/assets/maturity.py
-          bank=plugins/fpf-competency-bank/frameworks
+          bank=plugins/fpf-competency-bank/.dpf
           got_dpf=$(python3 "$m" "$bank/DPF-COUPLING-GENERALIZATION" --json | python3 -c "import sys,json;print(json.load(sys.stdin)['level'])")
           got_lpf=$(python3 "$m" "$bank/LPF-SIMPLIFICATION-REVIEW" --json | python3 -c "import sys,json;print(json.load(sys.stdin)['level'])")
           echo "DPF-COUPLING=$got_dpf  LPF-SIMPLIFICATION=$got_lpf"
@@ -65,10 +77,10 @@ jobs:
         run: |
           set -e
           m=plugins/fpf-integration/skills/dpf-authoring/assets/maturity.py
-          bank=plugins/fpf-competency-bank/frameworks
+          bank=plugins/fpf-competency-bank/.dpf
           python3 "$m" "$bank/DPF-COUPLING-GENERALIZATION" >/dev/null
           python3 "$m" "$bank/LPF-SIMPLIFICATION-REVIEW" >/dev/null
-          changed=$(git status --porcelain -- 'plugins/fpf-competency-bank/frameworks/*/DPF.md')
+          changed=$(git status --porcelain -- 'plugins/fpf-competency-bank/.dpf/*/DPF.md')
           test -z "$changed" || { echo "::error::seed DPF.md изменён прогоном maturity.py:"; echo "$changed"; exit 1; }
 
   # Сборка документации Zensical. Публикация на master остаётся в docs.yml;

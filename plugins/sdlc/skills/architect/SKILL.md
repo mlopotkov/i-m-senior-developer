@@ -90,13 +90,17 @@ Based on step 2:
 
 Use the output format template below. Resolve the target path in this order: the document named by the orchestrator (under `/plan-do` this is the `ARCHITECTURE.md` referenced in the execution plan header) → the project's convention from `planner-context.md` §5 → `<feature-dir>/ARCH-NN.md`. Update that document in place; never add a second architecture file beside it, because the execution plan's freshness gate tracks one path only. Every section in the template is required; use `— none identified yet` rather than omitting a section entirely.
 
+The architecture document is the required artifact of this skill, not an optional deliverable. The resolved target path is the explicit request that the general rule against creating `*.md` files defers to; that file usually already exists, so the write fills it rather than creating a file. Returning the architecture as chat prose instead of writing it, or reporting the design blocked because documents may not be created, is a contract violation. Attempt the write. Report only a refusal the tool returned, quoted verbatim. An anticipated refusal is not a refusal.
+
 Work through the template in order:
-- Start with Bounded Contexts — name all contexts before filling hand-off contracts.
+- Start with Bounded Contexts — name all contexts before filling hand-off contracts. Every row fills `Forbidden imports`; a framework-free core names the framework package there, not only in prose.
 - Fill Hand-off Contracts after contexts are named — each row requires both contexts to exist.
+- Fill Requirements trace after Hand-off Contracts — it needs both contexts and contract rows to point at.
 - Write Data Flow after contracts — the flow connects the contexts via their contracts.
 - Fill Integration Points last — external dependencies usually emerge from the data flow.
 - Fill Decisions & owners after Integration Points — every behavioral predicate is either committed here or surfaced as an Open Question.
 - Always end with Open Questions — capture every unresolved decision, even minor ones.
+- Before hand-off, audit the document mechanically: every bounded-context row has a non-empty module/path and `Forbidden imports`; every acceptance criterion has a Requirements trace row. Fix an omission before returning.
 
 **Step 5 — Hand-off.**
 
@@ -110,7 +114,7 @@ Stack detection is Step 2 above — Python markers first (`pyproject.toml`, `req
 
 ## Output format — architecture document
 
-Write the following template to `<feature-dir>/ARCH-NN.md`. Every section is required. Use `— none identified yet` if a section is empty at time of writing, but the architect must not silently skip Open Questions — if there are genuinely no open questions, write `— architecture is complete as stated`.
+Write the following template to the target path resolved in Step 4 (`<feature-dir>/ARCH-NN.md` when nothing else applies). Returning it as chat prose is not an alternative to the file. Every section is required. Use `— none identified yet` if a section is empty at time of writing, but the architect must not silently skip Open Questions — if there are genuinely no open questions, write `— architecture is complete as stated`.
 
 ```markdown
 # <FEAT-XXXX> Architecture (ARCH-NN)
@@ -118,16 +122,23 @@ Write the following template to `<feature-dir>/ARCH-NN.md`. Every section is req
 > **Source feature:** <path/to/README.md>
 > **Stack:** backend-python | frontend-react | mixed | unknown
 > **References loaded:** <list>
+> **Reference gaps:** <detected stack with no matching reference | none>
 > **Generated:** <ISO date>
 
 ## Bounded contexts
-- <context-name>: <one-sentence purpose> — <module/path it lives in>
-  - <sub-boundary if needed>: <one-sentence purpose>
+| Context | Purpose | Module / path | Forbidden imports |
+|---|---|---|---|
+| <context-name> | <one-sentence purpose> | <module/path> | <dependencies this context must not import, or `none`> |
 
 ## Hand-off contracts
 | Caller | Callee | Input shape | Output shape | Error mode | Vocabulary |
 |---|---|---|---|---|---|
 | <context-A> | <context-B> | <type or pseudocode> | <type or pseudocode> | <exception / HTTP status / empty> | <declaring context — whose language names this contract> |
+
+## Requirements trace
+| Acceptance criterion from the feature README | Implementing context | Hand-off contract row |
+|---|---|---|
+| <criterion, quoted> | <context that satisfies it> | <Caller→Callee row, or "n/a — internal"> |
 
 ## Data flow
 <diagram in ASCII or prose; one paragraph per major flow>
@@ -169,9 +180,11 @@ code comments and identifiers.
 
 **Section guidance:**
 
-**Bounded contexts** — One bullet per context. Name it. State its single responsibility in one sentence. Name the module, app, or path where it lives. A context may have named sub-boundaries (e.g. a service layer within a Django app, a repository layer within a FastAPI service); add a nested bullet for each sub-boundary worth naming. Rule: if you cannot state the context's responsibility in one sentence, the context is not yet bounded — it is two contexts fused together.
+**Bounded contexts** — One bullet per context. Name it. State its single responsibility in one sentence. Name the module, app, or path where it lives. A context may have named sub-boundaries (e.g. a service layer within a Django app, a repository layer within a FastAPI service); add a nested bullet for each sub-boundary worth naming. When a context is a framework type — a view layer, a component, a scene, a task — name the framework-free core beside it as its own sub-boundary and state the invariant that keeps them apart (a forbidden import) as a contract row. Rule: if you cannot state the context's responsibility in one sentence, the context is not yet bounded — it is two contexts fused together.
 
 **Hand-off contracts** — One row per cross-context call. Input and output shapes must be named types or brief inline pseudocode — not prose like "sends the user data". Error mode: what concretely happens on failure (exception class, HTTP status code, empty result, dead-letter queue). If the error mode is "unknown at design time", that belongs in Open Questions, not in this table. Vocabulary: name the context whose language the contract speaks — the answer must be the declaring context. Fill it for every row; on rows created by dependency inversion (the port is declared in one context, implemented in another) run the substitution test before accepting the names — see §Boundary vocabulary.
+
+**Requirements trace** — Every acceptance criterion of the feature maps to at least one context. An unmapped criterion is a design defect, not a formatting gap: add the missing context or the missing contract row. When it cannot be resolved at design time, it goes to Open questions with an owner — the same route a requirement with no decision takes. The Decisions table traces the other way, from a decision to the requirement that motivates it; this table proves the reverse, that nothing asked for was left undesigned.
 
 **Data flow** — ASCII diagram or prose. One paragraph per major flow. Separate async flows from sync flows — they have different failure modes and different monitoring requirements. This section is where "just CRUD" hides its real complexity: cache invalidation on update, event emission to downstream consumers, optimistic locking to prevent concurrent overwrites, audit trail writes, webhook fan-out. Capture all of these explicitly, even if implementation of some is deferred to a later phase.
 
@@ -216,6 +229,7 @@ Headlines below; full explanations in `references/design-conventions.md`.
 7. **Unknown stack treated as no-op** — still produce a full architecture with universal principles; mark `stack: unknown`. No stack reference ≠ a shorter architecture.
 8. **Partial state space** — enumerate every discrete state, transition, prerequisite reachability, and identity-slot occupancy; an unreachable / missing-transition / doubly-occupiable state is a design defect found now, not a runtime bug later.
 9. **Vocabulary leak across the boundary** — a port/event declared in context A named with the subscriber's action or mechanism (`InvoiceEmailQueuePort.enqueue_email`); imports are clean, so structural checks stay silent. Run the substitution test on every inverted-dependency contract row (§Boundary vocabulary).
+10. **Logic fused into a framework class** — logic written inside a framework type (view, component, scene, task) cannot be tested deterministically. Name a separate framework-free core context and write the seam as an invariant the reviewer can check against a diff — a forbidden-import rule, not prose.
 
 ## Integration with other plugins
 
@@ -234,8 +248,8 @@ Headlines below; full explanations in `references/design-conventions.md`.
 If the detected stack has no matching reference (e.g. Go backend, Java Spring, iOS/Android mobile, Ruby on Rails, PHP):
 
 1. Apply universal design principles: bounded contexts, explicit contracts, evidence-based decisions, parsimony, explicit hand-offs.
-2. Set `stack: <detected-technology> — no specific reference, universal principles applied` in the architecture document's metadata header.
-3. Do not fail the architecture session. Do not invent a reference inline (do not write an ad-hoc Go design guide embedded in the architecture document itself). Do not silently omit the metadata annotation.
+2. Set `Stack: <detected-technology> — no specific reference, universal principles applied` and `Reference gaps: <detected-technology>` in the metadata header.
+3. Do not fail the architecture session. Do not invent a reference inline or name a generalized stack guide as loaded when no such file was read. `References loaded` lists actual files/skills only; the gap belongs in `Reference gaps`.
 4. Surface the gap in Open Questions: «No stack-specific reference exists for <technology>. Review `plugins/planner/skills/planner/references/bootstrap.md` §4 for full coverage map.» This allows a future plugin author or the repo owner to act on the gap.
 
 Universal design principles that apply regardless of stack:
@@ -244,6 +258,10 @@ Universal design principles that apply regardless of stack:
 - Data flow is documented before implementation begins.
 - Integration points name protocol, auth model, and failure handling.
 - Open questions are surfaced, not silently resolved.
+- The detected stack's own module-boundary unit is the bounded-context seam. Do not
+  re-impose a Django-app or React-feature-folder seam onto a stack that has neither;
+  when the unit cannot be inferred from project signals, ask rather than default, and
+  record the answer as an assumption in Open questions.
 
 ## Reference index
 
@@ -261,4 +279,4 @@ A reference adds stack-specific design guidance; it does not replace the SKILL.m
 - `references/api-design.md` — **load when:** the feature exposes or consumes an API (REST, GraphQL, gRPC, WebSocket), regardless of backend stack.
   Contents: protocol decision matrix, REST resource modeling (URL structure, verb-to-action mapping, idempotency table), spec-first vs code-first decision, versioning strategy (URL prefix vs header), error contract (RFC 7807 Problem Details), pagination and filtering design (cursor vs offset, filter syntax), idempotency and retry classification per endpoint.
 
-- `references/design-conventions.md` — loaded on demand (stack-agnostic, always available). Full Gotcha explanations, the design-only may / must-not lists, and the design / implement / review angle-boundary table. SKILL.md keeps the headlines; this holds the detail.
+- `references/design-conventions.md` — loaded on demand (stack-agnostic, always available). Full Gotcha explanations, the design-only may / must-not lists, and the design / implement / review angle-boundary table, including the framework-boundary invariant. SKILL.md keeps the headlines; this holds the detail.

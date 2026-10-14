@@ -1,6 +1,6 @@
 export const meta = {
   name: 'dpf-authoring-pipeline', // двигатель; парадная дверь — скилл dpf-authoring (../skills/dpf-authoring/SKILL.md)
-  description: 'Авторинг DPF по методу DPF-AUTHORING (E.4.DPF × G.2, ред. FPF f7c7e93f): SoTA→тезисы/анти-тезисы→source-pack→сборка→критик (CC-DPF.1–9 + оценка пакета E.4.DPF.DA). Роли фаз — встроенные в скилл пакеты компетенций формата dpf-apply (Bridge/Critic ← frameworks/DPF-ADVERSARIAL-REVIEW, Source-pack/Assemble ← frameworks/DPF-KNOWLEDGE-CURATION) — зависимостей от .claude/agents проекта нет. Все артефакты передаются ТОЛЬКО через файлы. Список компетенций — ТОЛЬКО явный args.competencies (fail-fast при пустом: массового bootstrap-фолбэка нет — инцидент 2026-07-04, прогон всех 29 вместо 5).',
+  description: 'Авторинг DPF по методу DPF-AUTHORING (E.4.DPF × G.2, ред. FPF f7c7e93f): SoTA→тезисы/анти-тезисы→source-pack→сборка→критик (CC-DPF.1–9 + оценка пакета E.4.DPF.DA). Роли фаз — встроенные в скилл пакеты компетенций формата dpf-apply (Bridge/Critic ← .dpf/DPF-ADVERSARIAL-REVIEW, Source-pack/Assemble ← .dpf/DPF-KNOWLEDGE-CURATION) — зависимостей от .claude/agents проекта нет. Все артефакты передаются ТОЛЬКО через файлы. Список компетенций — ТОЛЬКО явный args.competencies (fail-fast при пустом: массового bootstrap-фолбэка нет — инцидент 2026-07-04, прогон всех 29 вместо 5).',
   phases: [
     { title: 'SoTA Harvest' },
     { title: 'Bridge' },
@@ -24,23 +24,23 @@ const A = typeof args === 'string' ? JSON.parse(args) : (args || {})
 if (!A.repoRoot) {
   throw new Error(
     'FAIL-FAST: args.repoRoot не передан. Укажи абсолютный путь ТЕКУЩЕГО проекта — ' +
-    'туда будут записаны каталоги DPF (<repoRoot>/project/frameworks, либо задай args.frameworksDir).'
+    'туда будут записаны каталоги DPF (<repoRoot>/project/.dpf, либо задай args.dpfDir).'
   )
 }
 if (!A.skillDir) {
   throw new Error(
     'FAIL-FAST: args.skillDir не передан. Укажи абсолютный путь каталога скилла dpf-authoring — ' +
     'тот, из которого читался SKILL.md (…/skills/dpf-authoring). Из него конвейер читает ' +
-    'references/method.md, assets/ и встроенные пакеты frameworks/.'
+    'references/method.md, assets/ и встроенные пакеты .dpf/.'
   )
 }
 const SKILL_DIR = A.skillDir
 const ROOT = A.repoRoot
-const FW = A.frameworksDir || ROOT + '/project/frameworks'
+const DPF_DIR = A.dpfDir || ROOT + '/project/.dpf'
 const METHOD = SKILL_DIR + '/references/method.md'
 const TEMPLATE = SKILL_DIR + '/assets/template-dpf.md'
 const EXEMPLAR = A.exemplar || TEMPLATE // опц. args.exemplar: абс. путь лучшего DPF целевого проекта как эталон формата
-const COMPMAP = FW + '/competency-map.md'
+const COMPMAP = DPF_DIR + '/competency-map.md'
 const FPF_SPEC = '~/.claude/knowledge/fpf/FPF-Spec.md'
 const FPF_EDITION = A.fpfEdition || 'ailev/FPF@f7c7e93f' // редакция, под которую запинен метод (references/method.md)
 const RUN_DATE = A.date || ''
@@ -73,7 +73,7 @@ const STATUS = {
   required: ['ok', 'file_written', 'gate_passed', 'notes'],
   properties: { ok: { type: 'boolean' }, file_written: { type: 'string' }, gate_passed: { type: 'boolean' }, notes: { type: 'string' } },
 }
-const dirOf = (c) => FW + '/' + c.id
+const dirOf = (c) => DPF_DIR + '/' + c.id
 
 // Роль фазы = ВСТРОЕННЫЙ пакет компетенции (формат dpf-apply: DPF.md +
 // assets/apply-prompt.md) в каталоге скилла — скилл самодостаточен, роли сильные
@@ -81,10 +81,10 @@ const dirOf = (c) => FW + '/' + c.id
 // .claude/agents проекта. Fail-fast: пакет не читается → фаза падает, а не работает
 // «как получится».
 const roleOf = (pkgId, declaredUse) => `
-РОЛЬ — из встроенного пакета компетенции ${SKILL_DIR}/frameworks/${pkgId} (declaredUse: ${declaredUse}).
+РОЛЬ — из встроенного пакета компетенции ${SKILL_DIR}/.dpf/${pkgId} (declaredUse: ${declaredUse}).
 Прочитай ОБА файла и работай строго по ним:
-1) ${SKILL_DIR}/frameworks/${pkgId}/assets/apply-prompt.md — процедура роли (исполняй буквально: чек-листы, порядок проверок, критерии отказа);
-2) ${SKILL_DIR}/frameworks/${pkgId}/DPF.md — паттерны, контрпримеры, типовые ошибки роли (рабочий справочник, не фон).
+1) ${SKILL_DIR}/.dpf/${pkgId}/assets/apply-prompt.md — процедура роли (исполняй буквально: чек-листы, порядок проверок, критерии отказа);
+2) ${SKILL_DIR}/.dpf/${pkgId}/DPF.md — паттерны, контрпримеры, типовые ошибки роли (рабочий справочник, не фон).
 Файлы недоступны → НЕ выполняй фазу: верни ok=false, gate_passed=false, notes='FAIL-FAST: пакет роли ${pkgId} не найден в скилле' и остановись.
 `
 const common = (c) => `

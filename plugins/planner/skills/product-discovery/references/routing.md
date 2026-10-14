@@ -134,22 +134,23 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/product-discovery/assets/product_state.py"
 - список требуемых способностей;
 - явный запрет записи файлов.
 
-Выход — нормализованный черновик с полями:
+Выход — нормализованный JSON-черновик. Точные имена полей, типы и обязательность для выбранного вида выдаёт машинный договор:
 
 ```text
-problem
-outcome
-actors
-scope_in
-scope_out
-assumptions[]
-unknowns[]
-candidate_slices[]        # для epic и roadmap
-recommended_outcome       # для idea
-limitations[]
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/product-discovery/assets/product_state.py" \
+  response-contract --for <kind>
 ```
 
-Обязательны `problem`, `outcome` и `limitations`.
+Процедура получает договор после успешного `route` и передаёт поставщику весь JSON из stdout дословно. Этот вывод и `check-response` используют одни и те же данные; перечень ниже поясняет смысл полей, но не задаёт их типы:
+
+- `problem` — проблема;
+- `outcome` — наблюдаемый результат;
+- `actors` — участники;
+- `scope_in` и `scope_out` — границы;
+- `assumptions` и `unknowns` — допущения и неизвестное;
+- `candidate_slices` — кандидаты для общей гипотезы и порядка фич;
+- `recommended_outcome` — предлагаемый исход замысла;
+- `limitations` — ограничения проработки.
 
 ### Машинная проверка состава и уборка черновика
 

@@ -1,0 +1,7 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "enableWeakerNestedSandbox": true,
+    "bwrapPath": "/usr/bin/bwrap"
+  }
+}

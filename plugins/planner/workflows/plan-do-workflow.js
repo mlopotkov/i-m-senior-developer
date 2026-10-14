@@ -107,6 +107,11 @@ function createRunResult(rawArgs) {
   }
 }
 
+function reviewTargetOf(phaseDefinition) {
+  const target = phaseDefinition.review_target
+  return target === undefined || target === null ? phaseDefinition.review_scope : target
+}
+
 function requireRole(role, name, problems) {
   if (!role || typeof role !== 'object' || Array.isArray(role)) {
     problems.push(`${name} must be an object`)
@@ -154,7 +159,11 @@ function normalizeArguments(rawArgs, result) {
       phaseKeys.add(phaseDefinition.key)
       if (!Object.hasOwn(phaseDefinition, 'inputs')) problems.push(`${prefix}.inputs is required`)
       if (!Object.hasOwn(phaseDefinition, 'outputs')) problems.push(`${prefix}.outputs is required`)
-      if (!Object.hasOwn(phaseDefinition, 'review_scope')) problems.push(`${prefix}.review_scope is required`)
+      // Прежний review_scope остаётся совместимым входом: он нормализуется в
+      // review_target, чтобы планы, написанные до режимов ревью, не ломались.
+      if (reviewTargetOf(phaseDefinition) === undefined) {
+        problems.push(`${prefix}.review_target is required`)
+      }
       requireRole(phaseDefinition.implementer, `${prefix}.implementer`, problems)
     })
   }
@@ -171,6 +180,9 @@ function normalizeArguments(rawArgs, result) {
   result.feature_directory = rawArgs.feature_directory
   result.execution_path = rawArgs.execution_path
   result.planned_phases = rawArgs.phases.map((phaseDefinition) => phaseDefinition.title)
+  for (const phaseDefinition of rawArgs.phases) {
+    phaseDefinition.review_target = reviewTargetOf(phaseDefinition)
+  }
   return { value: rawArgs }
 }
 
@@ -299,13 +311,16 @@ function parseImplementationSummary(value, expectedPath, statuses) {
 }
 
 function parseReviewSummary(value, expectedPath) {
-  const parsed = parseProtocolSections(value, ['Status', 'Report', 'Findings', 'Blocking', 'Certification boundary', 'Summary'])
+  const parsed = parseProtocolSections(value, ['Status', 'Report', 'Coverage', 'Findings', 'Blocking', 'Certification boundary', 'Summary'])
   if (!parsed.ok) return parsed
   const sections = parsed.sections
   if (!['clean', 'changes-requested'].includes(sections.Status)) {
     return { ok: false, reason: `invalid Status: ${sections.Status}` }
   }
   if (sections.Report !== expectedPath) return { ok: false, reason: 'Report does not match the reserved path' }
+  if (!['complete', 'empty', 'incomplete'].includes(sections.Coverage)) {
+    return { ok: false, reason: `invalid Coverage: ${sections.Coverage}` }
+  }
   const findings = sections.Findings.match(/^major (\d+); minor (\d+); security (\d+); design (\d+)$/)
   if (!findings) return { ok: false, reason: 'Findings must contain four nonnegative counters' }
   if (!/^\d+$/.test(sections.Blocking)) return { ok: false, reason: 'Blocking must be a nonnegative integer' }
@@ -315,6 +330,7 @@ function parseReviewSummary(value, expectedPath) {
   return {
     ok: true,
     status: sections.Status,
+    coverage: sections.Coverage,
     findings: {
       major: Number(findings[1]),
       minor: Number(findings[2]),
@@ -552,10 +568,11 @@ function reviewPrompt(input, phaseDefinition, implementationReportPath, reportPa
   return (
     roleGuard(input.feature_directory) +
     correctionText +
-    `Фаза: ${phaseDefinition.title}\nОбласть ревью:\n${renderPlanValue(phaseDefinition.review_scope)}\n\n` +
+    `Фаза: ${phaseDefinition.title}\nЦель ревью:\n${renderPlanValue(phaseDefinition.review_target)}\n\n` +
+    'Веди ревью по переданной цели: режим, base, при наличии head и область. Полнота охвата сообщается отдельным полем Coverage и не выводится из Status.\n\n' +
     'Не изменяй исходники, архитектуру, план, индекс или ветку. При design concern дословно помести concern в Summary.\n\n' +
     'Верни в чат только эту сводку, не дублируя полный отчёт:\n\n' +
-    `Status: clean | changes-requested\nReport: ${reportPath}\nFindings: major N; minor N; security N; design N\nBlocking: N\nCertification boundary: <что статическое ревью не удостоверяет>\nSummary: <проза не длиннее 1200 символов>`
+    `Status: clean | changes-requested\nReport: ${reportPath}\nCoverage: complete | empty | incomplete\nFindings: major N; minor N; security N; design N\nBlocking: N\nCertification boundary: <что статическое ревью не удостоверяет>\nSummary: <проза не длиннее 1200 символов>`
   )
 }
 
@@ -718,6 +735,12 @@ async function runImplementationPhase(context, phaseDefinition) {
 
     if (review.summary.findings.design > 0) {
       stopRun(context, `design finding in ${phaseDefinition.title}: ${review.summary.summary}`)
+      return false
+    }
+    // Полнота охвата — отдельная ось от находок: непокрытая область не
+    // исправляется кругом правок, потому что исправлять там пока нечего.
+    if (review.summary.coverage !== 'complete') {
+      stopRun(context, `review-coverage-${review.summary.coverage} in ${phaseDefinition.title}: ${review.summary.summary}`)
       return false
     }
     if (review.summary.status === 'clean' && review.summary.blocking === 0) {

@@ -1,0 +1,23 @@
+"""Запуск полного набора planner в проверенном контейнере."""
+
+import os
+from pathlib import Path
+import sys
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+
+from eval_container import DEFAULT_IMAGE, build_suite_command, run_in_container  # noqa: E402
+
+
+def build_docker_command(repo_root: Path, image: str) -> list[str]:
+    return build_suite_command(repo_root, image, "plugins/planner/evals/run.py")
+
+
+def main() -> int:
+    image = os.environ.get("PLANNER_EVAL_IMAGE", DEFAULT_IMAGE)
+    return run_in_container(REPO_ROOT, image, "plugins/planner/evals/run.py")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

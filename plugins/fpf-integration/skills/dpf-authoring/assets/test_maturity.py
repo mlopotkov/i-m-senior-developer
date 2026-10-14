@@ -28,7 +28,8 @@ import maturity  # noqa: E402
 REPO_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..")
 )
-BANK_FRAMEWORKS = os.path.join(REPO_ROOT, "plugins", "fpf-competency-bank", "frameworks")
+BANK_PLUGIN_DIR = os.path.join(REPO_ROOT, "plugins", "fpf-competency-bank")
+BANK_PACKAGES = os.path.join(BANK_PLUGIN_DIR, ".dpf")
 
 
 # ---------------------------------------------------------------------------
@@ -897,10 +898,25 @@ class WriteProfileTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-@unittest.skipUnless(os.path.isdir(BANK_FRAMEWORKS), "bank frameworks не найдены в этом дереве")
+class BankFixtureLocationTests(unittest.TestCase):
+    # Golden-проверки ниже пропускаются, когда сводов банка рядом нет: файл
+    # поставляется в assets скилла и исполняется в чужих деревьях. Поэтому
+    # переименование каталога банка выглядит как обычный пропуск, а прогон
+    # остаётся зелёным без единой golden-проверки. Здесь пропуск становится
+    # отказом: банк в дереве есть — своды обязаны найтись.
+    def test_bank_packages_are_where_golden_fixtures_look_for_them(self):
+        if not os.path.isdir(BANK_PLUGIN_DIR):
+            self.skipTest("плагин банка не поставляется в этом дереве")
+        self.assertTrue(
+            os.path.isdir(BANK_PACKAGES),
+            f"плагин банка есть, а каталога его сводов нет: {BANK_PACKAGES}",
+        )
+
+
+@unittest.skipUnless(os.path.isdir(BANK_PACKAGES), "сводов банка нет в этом дереве")
 class GoldenFixtureTests(unittest.TestCase):
     def _copy_pkg(self, name, tmp):
-        src = os.path.join(BANK_FRAMEWORKS, name)
+        src = os.path.join(BANK_PACKAGES, name)
         dst = os.path.join(tmp, name)
         shutil.copytree(src, dst)
         return dst
@@ -937,7 +953,7 @@ class GoldenFixtureTests(unittest.TestCase):
     def test_golden_does_not_mutate_source_repo_files(self):
         # write-profile пишет только во временную копию — исходники бэнка нетронуты.
         src_adequacy = os.path.join(
-            BANK_FRAMEWORKS, "LPF-SIMPLIFICATION-REVIEW", "references", "package-adequacy-2026-07-14.md"
+            BANK_PACKAGES, "LPF-SIMPLIFICATION-REVIEW", "references", "package-adequacy-2026-07-14.md"
         )
         before = open(src_adequacy, encoding="utf-8").read()
         with tempfile.TemporaryDirectory() as tmp:

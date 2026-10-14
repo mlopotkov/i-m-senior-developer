@@ -305,17 +305,34 @@ class FetchKnownIdsTests(unittest.TestCase):
                 handle.write(f"import json\nprint(json.dumps({rows!r}))\n")
             return hint.fetch_known_ids(stub)
 
-    def test_known_ids_skip_published_packages_without_admission(self):
+    def row(self, pkg_id, **overrides):
+        row = {
+            "id": pkg_id,
+            "published": True,
+            "admissible": True,
+            "assessment": "admissible",
+            "trusted_by_project": False,
+            "structure_problem": None,
+            "stale": False,
+        }
+        row.update(overrides)
+        return row
+
+    def test_known_ids_keep_only_packages_the_resolver_would_admit(self):
         rows = [
-            {"id": "DPF-ADMITTED", "published": True, "admissible": True},
-            {"id": "DPF-UNADMITTED", "published": True, "admissible": False},
-            {"id": "DPF-HUMAN-ROOT", "published": False, "admissible": None},
+            self.row("DPF-ADMITTED"),
+            self.row("DPF-HUMAN-ROOT", published=False),
+            self.row("DPF-NO-ASSESSMENT", admissible=False, assessment="absent"),
+            self.row("DPF-REJECTED", admissible=False, assessment="rejected"),
+            self.row("DPF-TRUSTED", admissible=False, assessment="absent", trusted_by_project=True),
+            self.row("DPF-STALE", stale=True),
+            self.row("DPF-BROKEN", structure_problem="dpf_id не совпадает с именем каталога"),
             {"id": "DPF-WITHOUT-FIELDS"},
         ]
 
         self.assertEqual(
             self.known_ids_for(rows),
-            {"DPF-ADMITTED", "DPF-HUMAN-ROOT", "DPF-WITHOUT-FIELDS"},
+            {"DPF-ADMITTED", "DPF-HUMAN-ROOT", "DPF-TRUSTED", "DPF-WITHOUT-FIELDS"},
         )
 
 
@@ -330,7 +347,7 @@ class PublishedLevelsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as home:
             paths_root = os.path.join(home, "paths-root")
             published_root = os.path.join(home, "published-root")
-            self.write_source_file(home, "frameworks.paths", [paths_root])
+            self.write_source_file(home, ".dpf.paths", [paths_root])
             self.write_source_file(home, "frameworks.published", [published_root])
 
             with mock.patch.dict(os.environ, {"HOME": home}):
@@ -340,9 +357,13 @@ class PublishedLevelsTests(unittest.TestCase):
         self.assertEqual(
             levels,
             [
+                ("project", "/project/.claude/.dpf"),
                 ("project", "/project/.claude/frameworks"),
+                ("user", os.path.join(home, ".claude", ".dpf")),
                 ("user", os.path.join(home, ".claude", "frameworks")),
                 ("plugin", paths_root),
+                ("plugin", os.path.join(home, ".claude", "dpf.d")),
+                ("plugin", os.path.join(home, ".claude", "frameworks.d")),
                 ("plugin", published_root),
             ],
         )
@@ -353,7 +374,7 @@ class PublishedLevelsTests(unittest.TestCase):
             published_alias = os.path.join(home, "published-alias")
             os.makedirs(human_root)
             os.symlink(human_root, published_alias)
-            self.write_source_file(home, "frameworks.paths", [human_root])
+            self.write_source_file(home, ".dpf.paths", [human_root])
             self.write_source_file(home, "frameworks.published", [published_alias])
 
             with mock.patch.dict(os.environ, {"HOME": home}):
@@ -363,16 +384,20 @@ class PublishedLevelsTests(unittest.TestCase):
         self.assertEqual(
             levels,
             [
+                ("project", "/project/.claude/.dpf"),
                 ("project", "/project/.claude/frameworks"),
+                ("user", os.path.join(home, ".claude", ".dpf")),
                 ("user", os.path.join(home, ".claude", "frameworks")),
                 ("plugin", human_root),
+                ("plugin", os.path.join(home, ".claude", "dpf.d")),
+                ("plugin", os.path.join(home, ".claude", "frameworks.d")),
             ],
         )
 
     def test__no_published_file__keeps_existing_levels(self):
         with tempfile.TemporaryDirectory() as home:
             paths_root = os.path.join(home, "paths-root")
-            self.write_source_file(home, "frameworks.paths", [paths_root])
+            self.write_source_file(home, ".dpf.paths", [paths_root])
 
             with mock.patch.dict(os.environ, {"HOME": home}):
                 with mock.patch.object(hint.os, "getcwd", return_value="/project"):
@@ -381,9 +406,13 @@ class PublishedLevelsTests(unittest.TestCase):
         self.assertEqual(
             levels,
             [
+                ("project", "/project/.claude/.dpf"),
                 ("project", "/project/.claude/frameworks"),
+                ("user", os.path.join(home, ".claude", ".dpf")),
                 ("user", os.path.join(home, ".claude", "frameworks")),
                 ("plugin", paths_root),
+                ("plugin", os.path.join(home, ".claude", "dpf.d")),
+                ("plugin", os.path.join(home, ".claude", "frameworks.d")),
             ],
         )
 
@@ -416,6 +445,43 @@ class PublishedBankHintTests(unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertIn("DPF-BANK-ONLY", output.getvalue())
+
+    def test__map_of_bank_owning_links__is_read_from_links_directory(self):
+        with tempfile.TemporaryDirectory() as home:
+            bank_root = os.path.join(home, "bank", "frameworks")
+            package = os.path.join(bank_root, "DPF-LINKED")
+            os.makedirs(package)
+            with open(os.path.join(package, "DPF.md"), "w", encoding="utf-8") as handle:
+                handle.write(
+                    "---\ndpf_id: DPF-LINKED\nkind: Domain Principle Framework\n"
+                    "status: active\nreview_due: 2099-01-01\nowner: guardian\n---\n\n"
+                    "> conformance: E.4.DPF.DA: admissibleForDeclaredDPFUse\n"
+                )
+            with open(os.path.join(bank_root, "competency-map.md"), "w", encoding="utf-8") as handle:
+                handle.write("| id | cues |\n|----|------|\n| DPF-LINKED | связность модулей |\n")
+
+            links_dir = os.path.join(home, ".claude", hint.BANK_LINKS_DIRNAME)
+            owner_dir = os.path.join(links_dir, hint.BANK_OWNERS_DIRNAME, "demo-bank")
+            os.makedirs(owner_dir)
+            os.symlink(package, os.path.join(owner_dir, "DPF-LINKED"))
+            os.symlink(
+                os.path.join(bank_root, "competency-map.md"),
+                os.path.join(owner_dir, "competency-map.md"),
+            )
+            os.symlink(os.path.join(owner_dir, "DPF-LINKED"), os.path.join(links_dir, "DPF-LINKED"))
+
+            output = io.StringIO()
+            integration_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            with mock.patch.dict(
+                os.environ,
+                {"HOME": home, "CLAUDE_PLUGIN_ROOT": integration_root},
+            ):
+                with mock.patch.object(sys, "stdin", io.StringIO('{"prompt": "связность модулей"}')):
+                    with mock.patch.object(sys, "stdout", output):
+                        code = hint.main()
+
+        self.assertEqual(code, 0)
+        self.assertIn("DPF-LINKED", output.getvalue())
 
 
 if __name__ == "__main__":

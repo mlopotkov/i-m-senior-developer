@@ -1088,6 +1088,60 @@ class ProductStateCliTest(unittest.TestCase):
         self.assertIn("invalid choice", result.stderr)
         self.assertEqual(result.stdout, "")
 
+    def test__response_contract__each_kind__returns_validator_field_types(
+        self,
+    ) -> None:
+        shared = {
+            "problem": {"required": True, "type": "text"},
+            "outcome": {"required": True, "type": "text"},
+            "actors": {"required": False, "type": "text"},
+            "scope_in": {"required": False, "type": "text"},
+            "scope_out": {"required": False, "type": "text"},
+            "assumptions": {"required": False, "type": "list[text]"},
+            "unknowns": {"required": False, "type": "list[text]"},
+            "limitations": {"required": True, "type": "list[text]"},
+        }
+        kind_fields = {
+            "idea": {
+                "recommended_outcome": {"required": False, "type": "text"}
+            },
+            "epic": {
+                "candidate_slices": {
+                    "required": False,
+                    "type": "list[text]",
+                }
+            },
+            "roadmap": {
+                "candidate_slices": {
+                    "required": False,
+                    "type": "list[text]",
+                }
+            },
+            "feature": {},
+        }
+
+        for kind, specific_fields in kind_fields.items():
+            with self.subTest(kind=kind):
+                result = self.run_cli("response-contract", "--for", kind)
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(
+                    json.loads(result.stdout),
+                    {
+                        "fields": shared | specific_fields,
+                        "for": kind,
+                    },
+                )
+
+    def test__response_contract__unknown_product_kind__returns_usage_error(
+        self,
+    ) -> None:
+        result = self.run_cli("response-contract", "--for", "initiative")
+
+        self.assertEqual(result.returncode, 64)
+        self.assertIn("invalid choice", result.stderr)
+        self.assertEqual(result.stdout, "")
+
     def test__check_response__complete_draft_for_each_kind__accepts_with_limitations(
         self,
     ) -> None:
@@ -1151,7 +1205,10 @@ class ProductStateCliTest(unittest.TestCase):
     ) -> None:
         cases = (
             ("unknown field", {"confidence": "high"}, "confidence"),
-            ("scalar as list", {"problem": ["две части"]}, "problem"),
+            ("problem as list", {"problem": ["две части"]}, "problem"),
+            ("actors as list", {"actors": ["владелец"]}, "actors"),
+            ("scope_in as list", {"scope_in": ["возврат"]}, "scope_in"),
+            ("scope_out as list", {"scope_out": ["история"]}, "scope_out"),
             ("list as scalar", {"limitations": "одно ограничение"}, "limitations"),
             ("list item not text", {"unknowns": [42]}, "unknowns"),
         )

@@ -2,6 +2,8 @@
 name: product-baseline
 model: sonnet
 tools: ["Read", "Grep", "Glob"]
+skills:
+  - planner:product-baseline
 description: |
   Use this agent when the product-discovery workflow has routed a request to
   `planner:product-baseline` as its built-in fallback provider.
@@ -28,4 +30,4 @@ description: |
 
 # Product baseline — встроенный ограниченный поставщик
 
-Read the `product-baseline` skill and follow it start-to-finish.
+Следуй предварительно загруженному `planner:product-baseline` от начала до конца. Не ищи его копию относительно рабочего каталога проекта. Если содержимое скилла не было доставлено, верни ограничение источника явно, не заменяя метод догадками.
