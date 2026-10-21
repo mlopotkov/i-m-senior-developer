@@ -87,6 +87,46 @@ Add this marketplace to Claude Code and install the plugin:
 /plugin install planner@i-m-senior-developer
 ```
 
+## Known limitations
+
+Claude Code может добавить субагенту инструкцию не записывать Markdown-отчёты
+даже тогда, когда `/planner:plan-do` выдал ему точный путь. В этом случае
+субагент может не вызвать `Write` и оставить обязательный файл пустым. Пустой
+файл не считается готовым отчётом; подробнее — в [сообщении о баге Claude Code](https://github.com/anthropics/claude-code/issues/101519).
+
+Есть и отдельный отказ самого `Write` для некоторых имён файлов отчётов:
+субагент вызывает инструмент, но тот отклоняет запись. Подходящее имя файла
+не устраняет риск отказа субагента вызвать `Write`.
+
+Пользователь наблюдал запись отчёта в новом процессе Claude Code после удаления
+этой инструкции через `CLAUDE_CODE_REMOVE_PROMPT_STRINGS`. Для разового запуска
+из оболочки:
+
+```bash
+export CLAUDE_CODE_REMOVE_PROMPT_STRINGS='["\n- Do NOT Write report/summary/findings/analysis .md files. Return findings directly as your final assistant message — the parent agent reads your text output, not files you create. (Files written as input to another tool are fine; this note is about report files.)"]'
+claude
+```
+
+Для следующих запусков можно добавить поле `env` в личный
+`~/.claude/settings.json` (если файл уже содержит настройки, добавьте только
+поле в существующий объект):
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_REMOVE_PROMPT_STRINGS": "[\"\\n- Do NOT Write report/summary/findings/analysis .md files. Return findings directly as your final assistant message — the parent agent reads your text output, not files you create. (Files written as input to another tool are fine; this note is about report files.)\"]"
+  }
+}
+```
+
+Значение — строка с JSON-массивом из одного точного фрагмента системной
+инструкции; `\n` задаёт перенос строки перед дефисом. Выберите один из двух
+способов и запустите **новый процесс** Claude Code. Не записывайте переменную
+в проектный `.claude/settings.json`: Claude Code игнорирует её там.
+Переменная недокументирована, не поддерживается как настройка плагина и не
+гарантирует результат в другом окружении. Она не снимает отдельную проверку
+имён файлов инструментом `Write`.
+
 ## Evaluation
 
 ```bash
